@@ -322,6 +322,38 @@ describe IO::Serializable do
       restored_employee.should eq employee
     end
   end
+
+  describe "field annotations" do
+    it "skips fields marked with @[IO::Field(skip: true)]" do
+      # Create a user with sensitive data
+      user = User.new(
+        id: 42,
+        username: "testuser",
+        email: "test@example.com",
+        password: "supersecret",
+        api_key: "private-api-key-123",
+        last_login_at: Time.utc
+      )
+
+      # Serialize to IO
+      io = IO::Memory.new
+      user.to_io(io)
+
+      # Deserialize from IO
+      io.rewind
+      restored_user = User.from_io(io)
+
+      # Fields that should be serialized
+      restored_user.id.should eq user.id
+      restored_user.username.should eq user.username
+      restored_user.email.should eq user.email
+
+      # Fields that should be skipped (should have default values)
+      restored_user.password.should eq "default_password"
+      restored_user.api_key.should be_nil
+      restored_user.last_login_at.should be_nil
+    end
+  end
 end
 
 # Test classes
@@ -422,5 +454,36 @@ class Employee
     name == other.name &&
     address == other.address &&
     salary == other.salary
+  end
+end
+
+# Test class for Skip annotation
+class User
+  include IO::Serializable
+
+  property id : Int32
+  property username : String
+  property email : String
+
+  # Sensitive data that should be skipped
+  @[IO::Field(skip: true)]
+  property password : String
+
+  # Sensitive data that should be skipped (nilable)
+  @[IO::Field(skip: true)]
+  property api_key : String?
+
+  # Runtime-only field that should be skipped
+  @[IO::Field(skip: true)]
+  property last_login_at : Time?
+
+  def initialize(
+    @id = 0,
+    @username = "",
+    @email = "",
+    @password = "default_password",
+    @api_key = nil,
+    @last_login_at = nil
+  )
   end
 end

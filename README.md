@@ -143,11 +143,61 @@ io = IO::Memory.new
 person.to_io(io, IO::ByteFormat::LittleEndian)
 ```
 
+### Field Annotations
+
+#### Skip Annotation
+
+You can use the `IO::Field` annotation with the `skip` option to exclude specific fields from serialization:
+
+```crystal
+class User
+  include IO::Serializable
+  
+  property id : Int32
+  property username : String
+  property email : String
+  
+  # This field will be excluded from serialization
+  @[IO::Field(skip: true)]
+  property password : String
+  
+  # This field will be excluded from serialization
+  @[IO::Field(skip: true)]
+  property temporary_token : String?
+  
+  def initialize(@id = 0, @username = "", @email = "", @password = "", @temporary_token = nil)
+  end
+end
+
+# Usage
+user = User.new(
+  id: 1,
+  username: "johndoe",
+  email: "john@example.com",
+  password: "secret123",
+  temporary_token: "temp-token-xyz"
+)
+
+# Serialize - password and temporary_token will be skipped
+io = IO::Memory.new
+user.to_io(io)
+
+# Deserialize - password and temporary_token will retain their default values
+io.rewind
+restored_user = User.from_io(io)
+puts restored_user.password # => ""
+puts restored_user.temporary_token # => nil
+```
+
+This is useful for:
+- Excluding sensitive data (like passwords) from serialization
+- Skipping temporary or runtime-only fields that shouldn't be persisted
+- Optimizing the binary size by excluding unnecessary fields
+
 ## TODO
 
 - Add annotiation for BytFormat
 - Add support for Arrays
-- Add annotation for Skip
 
 ## Development
 

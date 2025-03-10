@@ -7,60 +7,122 @@ class IO
       {% verbatim do %}
         def to_io(io : IO, format : IO::ByteFormat = IO::ByteFormat::SystemEndian) : Nil
           {% for ivar in @type.instance_vars %}
-            {% unless flag?(:spec) %}
-              puts "DEBUG: Processing ivar {{ivar.name}} of type {{ivar.type}}"
+            {% skip_ivar = false %}
+            {% ann = ivar.annotation(IO::Field) %}
+            {% if ann && ann[:skip] %}
+              {% skip_ivar = true %}
             {% end %}
 
-            # Check if type is nilable
-            {% is_nilable = ivar.type.union? && ivar.type.union_types.includes?(Nil) %}
-            {% if is_nilable %}
-              # Write a flag indicating if the value is nil (1) or not (0)
-              io.write_bytes(@{{ivar.name}}.nil? ? 1_i8 : 0_i8, format)
+            {% unless skip_ivar %}
               {% unless flag?(:spec) %}
-                puts "DEBUG: Writing nil flag for {{ivar.name}}: #{@{{ivar.name}}.nil? ? 1 : 0}"
+                puts "DEBUG: Processing ivar {{ivar.name}} of type {{ivar.type}}"
               {% end %}
 
-              # If nil, skip writing the actual value
-              unless @{{ivar.name}}.nil?
-                # Get the non-nil type for nilable types
-                {% actual_type = ivar.type.union_types.reject { |t| t == Nil }.first %}
+              # Check if type is nilable
+              {% is_nilable = ivar.type.union? && ivar.type.union_types.includes?(Nil) %}
+              {% if is_nilable %}
+                # Write a flag indicating if the value is nil (1) or not (0)
+                io.write_bytes(@{{ivar.name}}.nil? ? 1_i8 : 0_i8, format)
+                {% unless flag?(:spec) %}
+                  puts "DEBUG: Writing nil flag for {{ivar.name}}: #{@{{ivar.name}}.nil? ? 1 : 0}"
+                {% end %}
 
-                {% if [String].includes?(actual_type) %}
-                  bytesize = @{{ivar.name}}.not_nil!.bytesize
+                # If nil, skip writing the actual value
+                unless @{{ivar.name}}.nil?
+                  # Get the non-nil type for nilable types
+                  {% actual_type = ivar.type.union_types.reject { |t| t == Nil }.first %}
+
+                  {% if [String].includes?(actual_type) %}
+                    bytesize = @{{ivar.name}}.not_nil!.bytesize
+                    {% unless flag?(:spec) %}
+                      puts "DEBUG: Writing string {{ivar.name}} = #{@{{ivar.name}}}, size: #{bytesize}"
+                    {% end %}
+                    io.write_bytes(bytesize, format)
+                    io.write(@{{ivar.name}}.not_nil!.to_slice)
+
+                  {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(actual_type) %}
+                    bytesize = sizeof({{actual_type.name}})
+                    {% unless flag?(:spec) %}
+                      puts "DEBUG: Writing integer {{ivar.name}} = #{@{{ivar.name}}}, size: #{bytesize}"
+                    {% end %}
+                    io.write_bytes(@{{ivar.name}}.not_nil!, format)
+
+                  {% elsif [Float32, Float64].includes?(actual_type) %}
+                    bytesize = sizeof({{actual_type.name}})
+                    {% unless flag?(:spec) %}
+                      puts "DEBUG: Writing float {{ivar.name}} = #{@{{ivar.name}}}, size: #{bytesize}"
+                    {% end %}
+                    io.write_bytes(@{{ivar.name}}.not_nil!, format)
+
+                  {% elsif [Bool].includes?(actual_type) %}
+                    bytesize = sizeof({{actual_type.name}})
+                    {% unless flag?(:spec) %}
+                      puts "DEBUG: Writing boolean {{ivar.name}} = #{@{{ivar.name}}}, size: #{bytesize}"
+                    {% end %}
+                    io.write_bytes(@{{ivar.name}}.not_nil! ? 1_i8 : 0_i8, format)
+
+                  {% elsif [Char].includes?(actual_type) %}
+                    bytesize = sizeof({{actual_type.name}})
+                    {% unless flag?(:spec) %}
+                      puts "DEBUG: Writing char {{ivar.name}} = #{@{{ivar.name}}}, size: #{bytesize}"
+                    {% end %}
+                    # Get UTF-8 bytes for the character
+                    char_bytes = @{{ivar.name}}.not_nil!.to_s.bytes
+                    # Pad with leading zeros if needed
+                    padding = 4 - char_bytes.size
+                    padding.times { io.write_bytes(0_u8, format) }
+                    # Write the actual character bytes
+                    char_bytes.each do |byte|
+                      io.write_bytes(byte, format)
+                    end
+
+                  {% elsif actual_type.has_method?("to_io") %}
+                    {% unless flag?(:spec) %}
+                      puts "DEBUG: Writing nested object {{ivar.name}} = #{@{{ivar.name}}}"
+                    {% end %}
+                    @{{ivar.name}}.not_nil!.to_io(io, format)
+                  {% else %}
+                    raise "Type {{actual_type}} of {{ivar.name}} is not supported for serialization"
+                  {% end %}
+                end
+              {% else %}
+                # Non-nilable types
+                {% if [String].includes?(ivar.type) %}
+                  bytesize = @{{ivar.name}}.bytesize
                   {% unless flag?(:spec) %}
                     puts "DEBUG: Writing string {{ivar.name}} = #{@{{ivar.name}}}, size: #{bytesize}"
                   {% end %}
                   io.write_bytes(bytesize, format)
-                  io.write(@{{ivar.name}}.not_nil!.to_slice)
+                  io.write(@{{ivar.name}}.to_slice)
 
-                {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(actual_type) %}
-                  bytesize = sizeof({{actual_type.name}})
+                {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(ivar.type) %}
+                  bytesize = sizeof({{ivar.type.name}})
                   {% unless flag?(:spec) %}
                     puts "DEBUG: Writing integer {{ivar.name}} = #{@{{ivar.name}}}, size: #{bytesize}"
                   {% end %}
-                  io.write_bytes(@{{ivar.name}}.not_nil!, format)
+                  io.write_bytes(@{{ivar.name}}, format)
 
-                {% elsif [Float32, Float64].includes?(actual_type) %}
-                  bytesize = sizeof({{actual_type.name}})
+                {% elsif [Float32, Float64].includes?(ivar.type) %}
+                  bytesize = sizeof({{ivar.type.name}})
                   {% unless flag?(:spec) %}
                     puts "DEBUG: Writing float {{ivar.name}} = #{@{{ivar.name}}}, size: #{bytesize}"
                   {% end %}
-                  io.write_bytes(@{{ivar.name}}.not_nil!, format)
+                  io.write_bytes(@{{ivar.name}}, format)
 
-                {% elsif [Bool].includes?(actual_type) %}
-                  bytesize = sizeof({{actual_type.name}})
+                {% elsif [Bool].includes?(ivar.type) %}
+                  bytesize = sizeof({{ivar.type.name}})
                   {% unless flag?(:spec) %}
                     puts "DEBUG: Writing boolean {{ivar.name}} = #{@{{ivar.name}}}, size: #{bytesize}"
                   {% end %}
-                  io.write_bytes(@{{ivar.name}}.not_nil! ? 1_i8 : 0_i8, format)
+                  io.write_bytes(@{{ivar.name}} ? 1_i8 : 0_i8, format)
 
-                {% elsif [Char].includes?(actual_type) %}
-                  bytesize = sizeof({{actual_type.name}})
+                {% elsif [Char].includes?(ivar.type) %}
+                  bytesize = sizeof({{ivar.type.name}})
                   {% unless flag?(:spec) %}
                     puts "DEBUG: Writing char {{ivar.name}} = #{@{{ivar.name}}}, size: #{bytesize}"
                   {% end %}
                   # Get UTF-8 bytes for the character
-                  char_bytes = @{{ivar.name}}.not_nil!.to_s.bytes
+                  char_bytes = @{{ivar.name}}.to_s.bytes
                   # Pad with leading zeros if needed
                   padding = 4 - char_bytes.size
                   padding.times { io.write_bytes(0_u8, format) }
@@ -69,68 +131,14 @@ class IO
                     io.write_bytes(byte, format)
                   end
 
-                {% elsif actual_type.has_method?("to_io") %}
+                {% elsif ivar.type.has_method?("to_io") %}
                   {% unless flag?(:spec) %}
                     puts "DEBUG: Writing nested object {{ivar.name}} = #{@{{ivar.name}}}"
                   {% end %}
-                  @{{ivar.name}}.not_nil!.to_io(io, format)
+                  @{{ivar.name}}.to_io(io, format)
                 {% else %}
-                  raise "Type {{actual_type}} of {{ivar.name}} is not supported for serialization"
+                  raise "Type {{ivar.type}} of {{ivar.name}} is not supported for serialization"
                 {% end %}
-              end
-            {% else %}
-              # Non-nilable types
-              {% if [String].includes?(ivar.type) %}
-                bytesize = @{{ivar.name}}.bytesize
-                {% unless flag?(:spec) %}
-                  puts "DEBUG: Writing string {{ivar.name}} = #{@{{ivar.name}}}, size: #{bytesize}"
-                {% end %}
-                io.write_bytes(bytesize, format)
-                io.write(@{{ivar.name}}.to_slice)
-
-              {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(ivar.type) %}
-                bytesize = sizeof({{ivar.type.name}})
-                {% unless flag?(:spec) %}
-                  puts "DEBUG: Writing integer {{ivar.name}} = #{@{{ivar.name}}}, size: #{bytesize}"
-                {% end %}
-                io.write_bytes(@{{ivar.name}}, format)
-
-              {% elsif [Float32, Float64].includes?(ivar.type) %}
-                bytesize = sizeof({{ivar.type.name}})
-                {% unless flag?(:spec) %}
-                  puts "DEBUG: Writing float {{ivar.name}} = #{@{{ivar.name}}}, size: #{bytesize}"
-                {% end %}
-                io.write_bytes(@{{ivar.name}}, format)
-
-              {% elsif [Bool].includes?(ivar.type) %}
-                bytesize = sizeof({{ivar.type.name}})
-                {% unless flag?(:spec) %}
-                  puts "DEBUG: Writing boolean {{ivar.name}} = #{@{{ivar.name}}}, size: #{bytesize}"
-                {% end %}
-                io.write_bytes(@{{ivar.name}} ? 1_i8 : 0_i8, format)
-
-              {% elsif [Char].includes?(ivar.type) %}
-                bytesize = sizeof({{ivar.type.name}})
-                {% unless flag?(:spec) %}
-                  puts "DEBUG: Writing char {{ivar.name}} = #{@{{ivar.name}}}, size: #{bytesize}"
-                {% end %}
-                # Get UTF-8 bytes for the character
-                char_bytes = @{{ivar.name}}.to_s.bytes
-                # Pad with leading zeros if needed
-                padding = 4 - char_bytes.size
-                padding.times { io.write_bytes(0_u8, format) }
-                # Write the actual character bytes
-                char_bytes.each do |byte|
-                  io.write_bytes(byte, format)
-                end
-
-              {% elsif ivar.type.has_method?("to_io") %}
-                {% unless flag?(:spec) %}
-                  puts "DEBUG: Writing nested object {{ivar.name}} = #{@{{ivar.name}}}"
-                {% end %}
-                @{{ivar.name}}.to_io(io, format)
-              {% else %}
-                raise "Type {{ivar.type}} of {{ivar.name}} is not supported for serialization"
               {% end %}
             {% end %}
           {% end %}
@@ -146,31 +154,99 @@ class IO
           instance = new
 
           {% for ivar in @type.instance_vars %}
-            {% unless flag?(:spec) %}
-              puts "DEBUG: Processing ivar {{ivar.name}} of type {{ivar.type}}"
+            {% skip_ivar = false %}
+            {% ann = ivar.annotation(IO::Field) %}
+            {% if ann && ann[:skip] %}
+              {% skip_ivar = true %}
             {% end %}
 
-            # Check if type is nilable
-            {% is_nilable = ivar.type.union? && ivar.type.union_types.includes?(Nil) %}
-            {% if is_nilable %}
-              # Read the nil flag
-              nil_flag = io.read_bytes(Int8, format)
+            {% unless skip_ivar %}
               {% unless flag?(:spec) %}
-                puts "DEBUG: Read nil flag for {{ivar.name}}: #{nil_flag}"
+                puts "DEBUG: Processing ivar {{ivar.name}} of type {{ivar.type}}"
               {% end %}
 
-              # If the value is nil, use the _set_nil method
-              if nil_flag == 1
-                # DANGER ZONE: This is a hack to set the value to nil
-                pointerof(instance.@{{ivar.name}}).value = nil
+              # Check if type is nilable
+              {% is_nilable = ivar.type.union? && ivar.type.union_types.includes?(Nil) %}
+              {% if is_nilable %}
+                # Read the nil flag
+                nil_flag = io.read_bytes(Int8, format)
                 {% unless flag?(:spec) %}
-                  puts "DEBUG: Setting {{ivar.name}} to nil"
+                  puts "DEBUG: Read nil flag for {{ivar.name}}: #{nil_flag}"
                 {% end %}
-              else
-                # Get the non-nil type for nilable types
-                {% actual_type = ivar.type.union_types.reject { |t| t == Nil }.first %}
 
-                {% if [String].includes?(actual_type) %}
+                # If the value is nil, use the _set_nil method
+                if nil_flag == 1
+                  # DANGER ZONE: This is a hack to set the value to nil
+                  pointerof(instance.@{{ivar.name}}).value = nil
+                  {% unless flag?(:spec) %}
+                    puts "DEBUG: Setting {{ivar.name}} to nil"
+                  {% end %}
+                else
+                  # Get the non-nil type for nilable types
+                  {% actual_type = ivar.type.union_types.reject { |t| t == Nil }.first %}
+
+                  {% if [String].includes?(actual_type) %}
+                    # Read string size and then the string content
+                    size = io.read_bytes(Int32, format)
+                    {% unless flag?(:spec) %}
+                      puts "DEBUG: Read string size: #{size} for {{ivar.name}}"
+                    {% end %}
+                    buffer = Bytes.new(size)
+                    io.read_fully(buffer)
+                    instance.{{ivar.name}} = String.new(buffer)
+                    {% unless flag?(:spec) %}
+                      puts "DEBUG: Read string: #{instance.{{ivar.name}}} for {{ivar.name}}"
+                    {% end %}
+
+                  {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(actual_type) %}
+                    instance.{{ivar.name}} = io.read_bytes({{actual_type}}, format)
+                    {% unless flag?(:spec) %}
+                      puts "DEBUG: Read integer: #{instance.{{ivar.name}}} for {{ivar.name}}"
+                    {% end %}
+
+                  {% elsif [Float32, Float64].includes?(actual_type) %}
+                    instance.{{ivar.name}} = io.read_bytes({{actual_type}}, format)
+                    {% unless flag?(:spec) %}
+                      puts "DEBUG: Read float: #{instance.{{ivar.name}}} for {{ivar.name}}"
+                    {% end %}
+
+                  {% elsif [Bool].includes?(actual_type) %}
+                    value = io.read_bytes(Int8, format)
+                    instance.{{ivar.name}} = value != 0
+                    {% unless flag?(:spec) %}
+                      puts "DEBUG: Read boolean: #{instance.{{ivar.name}}} for {{ivar.name}}"
+                    {% end %}
+
+                  {% elsif [Char].includes?(actual_type) %}
+                    # Read 4 bytes for the character
+                    char_bytes = Array(UInt8).new
+                    4.times do |i|
+                      byte = io.read_bytes(UInt8, format)
+                      # Only add non-zero bytes to avoid null termination issues
+                      char_bytes << byte if byte != 0
+                    end
+                    {% unless flag?(:spec) %}
+                      puts "DEBUG: Read char bytes: #{char_bytes.inspect}"
+                    {% end %}
+
+                    # Convert bytes to string and get first char (or default to space if empty)
+                    char_str = String.new(char_bytes.to_unsafe, char_bytes.size)
+                    instance.{{ivar.name}} = char_str.empty? ? ' ' : char_str[0]
+                    {% unless flag?(:spec) %}
+                      puts "DEBUG: Read char: #{instance.{{ivar.name}}} for {{ivar.name}}"
+                    {% end %}
+
+                  {% else %}
+                    # For nested objects that include IO::Serializable
+                    instance.{{ivar.name}} = {{actual_type}}.from_io(io, format)
+                    {% unless flag?(:spec) %}
+                      puts "DEBUG: Read nested object: #{instance.{{ivar.name}}} for {{ivar.name}}"
+                    {% end %}
+                  {% end %}
+                end
+              {% else %}
+                # Non-nilable types
+                {% if [String].includes?(ivar.type) %}
                   # Read string size and then the string content
                   size = io.read_bytes(Int32, format)
                   {% unless flag?(:spec) %}
@@ -183,26 +259,26 @@ class IO
                     puts "DEBUG: Read string: #{instance.{{ivar.name}}} for {{ivar.name}}"
                   {% end %}
 
-                {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(actual_type) %}
-                  instance.{{ivar.name}} = io.read_bytes({{actual_type}}, format)
+                {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(ivar.type) %}
+                  instance.{{ivar.name}} = io.read_bytes({{ivar.type}}, format)
                   {% unless flag?(:spec) %}
                     puts "DEBUG: Read integer: #{instance.{{ivar.name}}} for {{ivar.name}}"
                   {% end %}
 
-                {% elsif [Float32, Float64].includes?(actual_type) %}
-                  instance.{{ivar.name}} = io.read_bytes({{actual_type}}, format)
+                {% elsif [Float32, Float64].includes?(ivar.type) %}
+                  instance.{{ivar.name}} = io.read_bytes({{ivar.type}}, format)
                   {% unless flag?(:spec) %}
                     puts "DEBUG: Read float: #{instance.{{ivar.name}}} for {{ivar.name}}"
                   {% end %}
 
-                {% elsif [Bool].includes?(actual_type) %}
+                {% elsif [Bool].includes?(ivar.type) %}
                   value = io.read_bytes(Int8, format)
                   instance.{{ivar.name}} = value != 0
                   {% unless flag?(:spec) %}
                     puts "DEBUG: Read boolean: #{instance.{{ivar.name}}} for {{ivar.name}}"
                   {% end %}
 
-                {% elsif [Char].includes?(actual_type) %}
+                {% elsif [Char].includes?(ivar.type) %}
                   # Read 4 bytes for the character
                   char_bytes = Array(UInt8).new
                   4.times do |i|
@@ -223,70 +299,10 @@ class IO
 
                 {% else %}
                   # For nested objects that include IO::Serializable
-                  instance.{{ivar.name}} = {{actual_type}}.from_io(io, format)
+                  instance.{{ivar.name}} = {{ivar.type}}.from_io(io, format)
                   {% unless flag?(:spec) %}
                     puts "DEBUG: Read nested object: #{instance.{{ivar.name}}} for {{ivar.name}}"
                   {% end %}
-                {% end %}
-              end
-            {% else %}
-              # Non-nilable types
-              {% if [String].includes?(ivar.type) %}
-                # Read string size and then the string content
-                size = io.read_bytes(Int32, format)
-                {% unless flag?(:spec) %}
-                  puts "DEBUG: Read string size: #{size} for {{ivar.name}}"
-                {% end %}
-                buffer = Bytes.new(size)
-                io.read_fully(buffer)
-                instance.{{ivar.name}} = String.new(buffer)
-                {% unless flag?(:spec) %}
-                  puts "DEBUG: Read string: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                {% end %}
-
-              {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(ivar.type) %}
-                instance.{{ivar.name}} = io.read_bytes({{ivar.type}}, format)
-                {% unless flag?(:spec) %}
-                  puts "DEBUG: Read integer: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                {% end %}
-
-              {% elsif [Float32, Float64].includes?(ivar.type) %}
-                instance.{{ivar.name}} = io.read_bytes({{ivar.type}}, format)
-                {% unless flag?(:spec) %}
-                  puts "DEBUG: Read float: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                {% end %}
-
-              {% elsif [Bool].includes?(ivar.type) %}
-                value = io.read_bytes(Int8, format)
-                instance.{{ivar.name}} = value != 0
-                {% unless flag?(:spec) %}
-                  puts "DEBUG: Read boolean: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                {% end %}
-
-              {% elsif [Char].includes?(ivar.type) %}
-                # Read 4 bytes for the character
-                char_bytes = Array(UInt8).new
-                4.times do |i|
-                  byte = io.read_bytes(UInt8, format)
-                  # Only add non-zero bytes to avoid null termination issues
-                  char_bytes << byte if byte != 0
-                end
-                {% unless flag?(:spec) %}
-                  puts "DEBUG: Read char bytes: #{char_bytes.inspect}"
-                {% end %}
-
-                # Convert bytes to string and get first char (or default to space if empty)
-                char_str = String.new(char_bytes.to_unsafe, char_bytes.size)
-                instance.{{ivar.name}} = char_str.empty? ? ' ' : char_str[0]
-                {% unless flag?(:spec) %}
-                  puts "DEBUG: Read char: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                {% end %}
-
-              {% else %}
-                # For nested objects that include IO::Serializable
-                instance.{{ivar.name}} = {{ivar.type}}.from_io(io, format)
-                {% unless flag?(:spec) %}
-                  puts "DEBUG: Read nested object: #{instance.{{ivar.name}}} for {{ivar.name}}"
                 {% end %}
               {% end %}
             {% end %}
