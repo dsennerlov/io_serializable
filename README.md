@@ -87,6 +87,8 @@ The library supports serialization of the following types:
 - Nilable versions of all the above types
 - Nested objects that also include `IO::Serializable`
 
+> **Note:** `Symbol` type is not supported for serialization due to limitations in Crystal's Symbol handling.
+
 ### Nested Objects
 
 You can nest serializable objects:
