@@ -30,7 +30,7 @@ class IO
               {% name = value[:key] %}
 
               if {{value[:nilable]}}
-                io.write_bytes(@{{name}}.nil? ? 1_i8 : 0_i8, format)
+                IoSerializable::Writer.write_nil_flag(io, @{{name}}.nil?, format)
               end
 
               unless @{{name}}.nil?

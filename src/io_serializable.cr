@@ -6,6 +6,10 @@ module IoSerializable
   module Writer
     extend self
 
+    def write_nil_flag(io : IO, value : Bool, format : IO::ByteFormat = IO::ByteFormat::SystemEndian)
+      io.write_bytes(value ? 1_i8 : 0_i8, format)
+    end
+
     def write_string(io : IO, value : String, format : IO::ByteFormat = IO::ByteFormat::SystemEndian)
       bytesize = value.bytesize
       io.write_bytes(bytesize, format)
@@ -126,6 +130,10 @@ module IoSerializable
 
   module Reader
     extend self
+
+    def read_nil_flag(io : IO, format : IO::ByteFormat = IO::ByteFormat::SystemEndian) : Int8
+      return io.read_bytes(Int8, format)
+    end
 
     def read_string(io : IO, format : IO::ByteFormat = IO::ByteFormat::SystemEndian) : String
       size = io.read_bytes(Int32, format)
