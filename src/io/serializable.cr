@@ -47,7 +47,7 @@ class IO
                 {% elsif [Char].includes?(actual_type) %}
                   IoSerializable::Writer.write_char(io, @{{name}}.not_nil!, format)
                 {% elsif actual_type.has_method?("to_io") %}
-                  @{{name.id}}.not_nil!.to_io(io, format)
+                  @{{name}}.not_nil!.to_io(io, format)
                 {% else %}
                   raise "Type {{actual_type}} of {{name}} is not supported for serialization"
                 {% end %}
@@ -56,118 +56,79 @@ class IO
           {% end %}
         end
 
-        # Define from_io method
         def self.from_io(io : IO, format : IO::ByteFormat = IO::ByteFormat::SystemEndian) : self
-          {% unless flag?(:spec) %}
-            puts "DEBUG: Starting from_io for #{self}"
-          {% end %}
-
-          # Create a new instance
-          #instance = new
-          instance = allocate
-          instance.initialize
-
-          {% for ivar in @type.instance_vars %}
-            {% skip_ivar = false %}
-            {% ann = ivar.annotation(IO::Field) %}
-            {% if ann && ann[:skip] %}
-              {% skip_ivar = true %}
+          {% begin %}
+            {% unless flag?(:spec) %}
+              puts "DEBUG: Starting from_io for #{self}"
             {% end %}
 
-            {% unless skip_ivar %}
-              {% unless flag?(:spec) %}
-                puts "DEBUG: Processing ivar {{ivar.name}} of type {{ivar.type}}"
+            instance = allocate
+            instance.initialize
+
+            {% properties = {} of Nil => Nil %}
+            {% for ivar in @type.instance_vars %}
+              {% ann = ivar.annotation(::IO::Field) %}
+              {% unless ann && ann[:skip] %}
+                {%
+                  properties[ivar.id] = {
+                    key:         ((ann && ann[:key]) || ivar).id,
+                    has_default: ivar.has_default_value?,
+                    default:     ivar.default_value,
+                    nilable:     ivar.type.nilable?,
+                    actual_type: ivar.type.union_types.reject { |t| t == Nil }.first,
+                    type:        ivar.type,
+                  }
+                %}
               {% end %}
+            {% end %}
 
-              # Check if type is nilable
-              {% is_nilable = ivar.type.union? && ivar.type.union_types.includes?(Nil) %}
-              {% if is_nilable %}
-                # Read the nil flag
-                nil_flag = io.read_bytes(Int8, format)
-                {% unless flag?(:spec) %}
-                  puts "DEBUG: Read nil flag for {{ivar.name}}: #{nil_flag}"
-                {% end %}
+            {% for _, value in properties %}
+              {% name = value[:key] %}
 
-                # If the value is nil, use the _set_nil method
-                if nil_flag == 1
-                  # DANGER ZONE: This is a hack to set the value to nil
-                  pointerof(instance.@{{ivar.name}}).value = nil
-                  {% unless flag?(:spec) %}
-                    puts "DEBUG: Setting {{ivar.name}} to nil"
-                  {% end %}
+              # IGNORE: BEGIN
+              {% if value[:nilable] %}
+#                is_{{name}}_nil = io.read_bytes(Int8, format)
+                is_{{name}}_nil = IoSerializable::Reader.read_nil_flag(io, format)
+
+                if 1 == is_{{name}}_nil
+                  pointerof(instance.@{{name}}).value = nil
                 else
-                  # Get the non-nil type for nilable types
-                  {% actual_type = ivar.type.union_types.reject { |t| t == Nil }.first %}
-
-                  {% if [String].includes?(actual_type) %}
-                    instance.{{ivar.name}} =IoSerializable::Reader.read_string(io)
-
-                  {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(actual_type) %}
-                    instance.{{ivar.name}} = IoSerializable::Reader.read_int(io, {{actual_type}}, format)
-
-                  {% elsif [Float32, Float64].includes?(actual_type) %}
-                    instance.{{ivar.name}} = IoSerializable::Reader.read_float(io, {{actual_type}}, format)
-
-                  {% elsif [Bool].includes?(actual_type) %}
-                    instance.{{ivar.name}} = IoSerializable::Reader.read_bool(io, format)
-
-                  {% elsif [Char].includes?(actual_type) %}
-                    instance.{{ivar.name}} = IoSerializable::Reader.read_char(io, format)
-
-                  # {% elsif actual_type.name.starts_with?("Array") %}
-                  #   {% element_type = actual_type.type_vars[0] %}
-                  #   instance.{{ivar.name}} = Array({{element_type}}).from_io(io, {{element_type}}, format)
-                  #   {% unless flag?(:spec) %}
-                  #     puts "DEBUG: Read array: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                  #   {% end %}
-
-                  {% else %}
-                    # For nested objects that include IO::Serializable
-                    instance.{{ivar.name}} = {{actual_type}}.from_io(io, format)
-                    {% unless flag?(:spec) %}
-                      puts "DEBUG: Read nested object: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                    {% end %}
-                  {% end %}
-                end
-              {% else %}
-                  # Non-nilable types
-                {% if [String].includes?(ivar.type) %}
-                  instance.{{ivar.name}} =IoSerializable::Reader.read_string(io)
-
-                {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(ivar.type) %}
-                  instance.{{ivar.name}} = IoSerializable::Reader.read_int(io, {{ivar.type}}, format)
-
-                {% elsif [Float32, Float64].includes?(ivar.type) %}
-                  instance.{{ivar.name}} = IoSerializable::Reader.read_float(io, {{ivar.type}}, format)
-
-                {% elsif [Bool].includes?(ivar.type) %}
-                  instance.{{ivar.name}} = IoSerializable::Reader.read_bool(io, format)
-
-                {% elsif [Char].includes?(ivar.type) %}
-                  instance.{{ivar.name}} = IoSerializable::Reader.read_char(io, format)
-
-                # {% elsif ivar.type.name.starts_with?("Array") %}
-                #   {% element_type = ivar.type.type_vars[0] %}
-                #   instance.{{ivar.name}} = Array({{element_type}}).from_io(io, {{element_type}}, format)
-                #   {% unless flag?(:spec) %}
-                #     puts "DEBUG: Read array: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                #   {% end %}
-
-                {% else %}
-                  # For nested objects that include IO::Serializable
-                  instance.{{ivar.name}} = {{ivar.type}}.from_io(io, format)
-                  {% unless flag?(:spec) %}
-                    puts "DEBUG: Read nested object: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                  {% end %}
-                {% end %}
               {% end %}
-            {% end %}
-          {% end %}
+              # IGNORE: END
 
-          {% unless flag?(:spec) %}
-            puts "DEBUG: Finished from_io"
+              {% actual_type = value[:actual_type] %}
+
+              {% if [String].includes?(actual_type) %}
+                instance.{{name}} = IoSerializable::Reader.read_string(io, format)
+              {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(actual_type) %}
+                instance.{{name}} = IoSerializable::Reader.read_int(io, {{actual_type}}, format)
+              {% elsif [Float32, Float64].includes?(actual_type) %}
+                instance.{{name}} = IoSerializable::Reader.read_float(io, {{actual_type}}, format)
+              {% elsif [Bool].includes?(actual_type) %}
+                instance.{{name}} = IoSerializable::Reader.read_bool(io, format)
+              {% elsif [Char].includes?(actual_type) %}
+                instance.{{name}} = IoSerializable::Reader.read_char(io, format)
+              {% else %}
+                if {{actual_type}}.responds_to?(:from_io)
+                  instance.{{name}} = {{actual_type}}.from_io(io, format)
+                else
+                  puts "Property {{name}} of type {{actual_type}} is not supported for deserialization"
+                end
+              {% end %}
+
+              # E: BEGIN
+              {% if value[:nilable] %}
+                end
+              {% end %}
+              # IGNORE: END
+            {% end %}
+
+            {% unless flag?(:spec) %}
+              puts "DEBUG: Finished from_io"
+            {% end %}
+
+            return instance
           {% end %}
-          instance
         end
       {% end %}
     end
