@@ -12,115 +12,46 @@ class IO
             {% properties = {} of Nil => Nil %}
             {% for ivar in @type.instance_vars %}
               {% ann = ivar.annotation(::IO::Field) %}
-              {% unless ann && (ann[:ignore] || ann[:ignore_deserialize]) %}
+              {% unless ann && (ann[:skip] || ann[:skip_serialize]) %}
                 {%
                   properties[ivar.id] = {
-                    key:         ((ann && ann[:key]) || ivar).id.stringify,
+                    key:         ((ann && ann[:key]) || ivar).id,
                     has_default: ivar.has_default_value?,
                     default:     ivar.default_value,
                     nilable:     ivar.type.nilable?,
+                    actual_type: ivar.type.union_types.reject { |t| t == Nil }.first,
                     type:        ivar.type,
-                    # root:        ann && ann[:root],
-                    # converter:   ann && ann[:converter],
-                    # presence:    ann && ann[:presence],
                   }
                 %}
               {% end %}
             {% end %}
-            {% puts properties %}
-            {% for name, value in properties %}
-              %var_{name} = uninitialized ::Union({{value[:type]}})
-            {% end %}
-          {% end %}
 
-          {% for ivar in @type.instance_vars %}
-            {% skip_ivar = false %}
-            {% ann = ivar.annotation(IO::Field) %}
-            {% if ann && ann[:skip] %}
-              {% skip_ivar = true %}
-            {% end %}
+            {% for _, value in properties %}
+              {% name = value[:key] %}
 
-            {% unless skip_ivar %}
-              {% unless flag?(:spec) %}
-                puts "DEBUG: Processing ivar {{ivar.name}} of type {{ivar.type}}"
-              {% end %}
+              if {{value[:nilable]}}
+                io.write_bytes(@{{name}}.nil? ? 1_i8 : 0_i8, format)
+              end
 
-              # Check if type is nilable
-              {% is_nilable = ivar.type.union? && ivar.type.union_types.includes?(Nil) %}
-              {% if is_nilable %}
-                # Write a flag indicating if the value is nil (1) or not (0)
-                io.write_bytes(@{{ivar.name}}.nil? ? 1_i8 : 0_i8, format)
-                {% unless flag?(:spec) %}
-                  puts "DEBUG: Writing nil flag for {{ivar.name}}: #{@{{ivar.name}}.nil? ? 1 : 0}"
-                {% end %}
+              unless @{{name}}.nil?
+                {% actual_type = value[:actual_type] %}
 
-                # If nil, skip writing the actual value
-                unless @{{ivar.name}}.nil?
-                  # Get the non-nil type for nilable types
-                  {% actual_type = ivar.type.union_types.reject { |t| t == Nil }.first %}
-
-                  {% if [String].includes?(actual_type) %}
-                    IoSerializable::Writer.write_string(io, @{{ivar.name}}.not_nil!, format)
-
-                  {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(actual_type) %}
-                    IoSerializable::Writer.write_int(io, @{{ivar.name}}.not_nil!, format)
-
-                  {% elsif [Float32, Float64].includes?(actual_type) %}
-                    IoSerializable::Writer.write_float(io, @{{ivar.name}}.not_nil!, format)
-
-                  {% elsif [Bool].includes?(actual_type) %}
-                    IoSerializable::Writer.write_bool(io, @{{ivar.name}}.not_nil!, format)
-
-                  {% elsif [Char].includes?(actual_type) %}
-                    IoSerializable::Writer.write_char(io, @{{ivar.name}}.not_nil!, format)
-
-                  # {% elsif actual_type.name.starts_with?("Array") %}
-                  #   {% unless flag?(:spec) %}
-                  #     puts "DEBUG: Writing array {{ivar.name}} = #{@{{ivar.name}}}"
-                  #   {% end %}
-                  #   @{{ivar.name}}.not_nil!.to_io(io, format)
-
-                  {% elsif actual_type.has_method?("to_io") %}
-                    {% unless flag?(:spec) %}
-                      puts "DEBUG: Writing nested object {{ivar.name}} = #{@{{ivar.name}}}"
-                    {% end %}
-                    @{{ivar.name}}.not_nil!.to_io(io, format)
-                  {% else %}
-                    raise "Type {{actual_type}} of {{ivar.name}} is not supported for serialization"
-                  {% end %}
-                end
-              {% else %}
-                # Non-nilable types
-                {% if [String].includes?(ivar.type) %}
-                  IoSerializable::Writer.write_string(io, @{{ivar.name}}, format)
-
-                {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(ivar.type) %}
-                  IoSerializable::Writer.write_int(io, @{{ivar.name}}, format)
-
-                {% elsif [Float32, Float64].includes?(ivar.type) %}
-                  IoSerializable::Writer.write_float(io, @{{ivar.name}}, format)
-
-                {% elsif [Bool].includes?(ivar.type) %}
-                  IoSerializable::Writer.write_bool(io, @{{ivar.name}}, format)
-
-                {% elsif [Char].includes?(ivar.type) %}
-                  IoSerializable::Writer.write_char(io, @{{ivar.name}}.not_nil!, format)
-
-                # {% elsif ivar.type.name.starts_with?("Array") %}
-                #   {% unless flag?(:spec) %}
-                #     puts "DEBUG: Writing array {{ivar.name}} = #{@{{ivar.name}}}"
-                #   {% end %}
-                #   @{{ivar.name}}.to_io(io, format)
-
-                {% elsif ivar.type.has_method?("to_io") %}
-                  {% unless flag?(:spec) %}
-                    puts "DEBUG: Writing nested object {{ivar.name}} = #{@{{ivar.name}}}"
-                  {% end %}
-                  @{{ivar.name}}.to_io(io, format)
+                {% if [String].includes?(actual_type) %}
+                  IoSerializable::Writer.write_string(io, @{{name}}.not_nil!, format)
+                {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(actual_type) %}
+                  IoSerializable::Writer.write_int(io, @{{name}}.not_nil!, format)
+                {% elsif [Float32, Float64].includes?(actual_type) %}
+                  IoSerializable::Writer.write_float(io, @{{name}}.not_nil!, format)
+                {% elsif [Bool].includes?(actual_type) %}
+                  IoSerializable::Writer.write_bool(io, @{{name}}.not_nil!, format)
+                {% elsif [Char].includes?(actual_type) %}
+                  IoSerializable::Writer.write_char(io, @{{name}}.not_nil!, format)
+                {% elsif actual_type.has_method?("to_io") %}
+                  @{{name.id}}.not_nil!.to_io(io, format)
                 {% else %}
-                  raise "Type {{ivar.type}} of {{ivar.name}} is not supported for serialization"
+                  raise "Type {{actual_type}} of {{name}} is not supported for serialization"
                 {% end %}
-              {% end %}
+              end
             {% end %}
           {% end %}
         end
