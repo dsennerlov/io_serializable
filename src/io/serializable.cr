@@ -49,11 +49,11 @@ class IO
                   {% elsif [Char].includes?(actual_type) %}
                     IoSerializable::Writer.write_char(io, @{{ivar.name}}.not_nil!, format)
 
-                  {% elsif actual_type.name.starts_with?("Array") %}
-                    {% unless flag?(:spec) %}
-                      puts "DEBUG: Writing array {{ivar.name}} = #{@{{ivar.name}}}"
-                    {% end %}
-                    @{{ivar.name}}.not_nil!.to_io(io, format)
+                  # {% elsif actual_type.name.starts_with?("Array") %}
+                  #   {% unless flag?(:spec) %}
+                  #     puts "DEBUG: Writing array {{ivar.name}} = #{@{{ivar.name}}}"
+                  #   {% end %}
+                  #   @{{ivar.name}}.not_nil!.to_io(io, format)
 
                   {% elsif actual_type.has_method?("to_io") %}
                     {% unless flag?(:spec) %}
@@ -79,27 +79,13 @@ class IO
                   IoSerializable::Writer.write_bool(io, @{{ivar.name}}, format)
 
                 {% elsif [Char].includes?(ivar.type) %}
-                  bytesize = sizeof({{ivar.type.name}})
-                  {% unless flag?(:spec) %}
-                    puts "DEBUG: Writing char {{ivar.name}} = #{@{{ivar.name}}}, size: #{bytesize}"
-                  {% end %}
-                  # Get UTF-8 bytes for the character
-                  char_bytes = @{{ivar.name}}.to_s.bytes
-                  # Pad with leading zeros if needed
-                  padding = 4 - char_bytes.size
-                  padding.times {
-                    io.write_bytes(0_u8, format)
-                  }
-                  # Write the actual character bytes
-                  char_bytes.each do |byte|
-                    io.write_bytes(byte, format)
-                  end
+                  IoSerializable::Writer.write_char(io, @{{ivar.name}}.not_nil!, format)
 
-                {% elsif ivar.type.name.starts_with?("Array") %}
-                  {% unless flag?(:spec) %}
-                    puts "DEBUG: Writing array {{ivar.name}} = #{@{{ivar.name}}}"
-                  {% end %}
-                  @{{ivar.name}}.to_io(io, format)
+                # {% elsif ivar.type.name.starts_with?("Array") %}
+                #   {% unless flag?(:spec) %}
+                #     puts "DEBUG: Writing array {{ivar.name}} = #{@{{ivar.name}}}"
+                #   {% end %}
+                #   @{{ivar.name}}.to_io(io, format)
 
                 {% elsif ivar.type.has_method?("to_io") %}
                   {% unless flag?(:spec) %}
@@ -121,7 +107,9 @@ class IO
           {% end %}
 
           # Create a new instance
-          instance = new
+          #instance = new
+          instance = allocate
+          instance.initialize
 
           {% for ivar in @type.instance_vars %}
             {% skip_ivar = false %}
@@ -156,56 +144,19 @@ class IO
                   {% actual_type = ivar.type.union_types.reject { |t| t == Nil }.first %}
 
                   {% if [String].includes?(actual_type) %}
-                    # Read string size and then the string content
-                    # size = io.read_bytes(Int32, format)
-                    # {% unless flag?(:spec) %}
-                    #   puts "DEBUG: Read string size: #{size} for {{ivar.name}}"
-                    # {% end %}
-                    # buffer = Bytes.new(size)
-                    # io.read_fully(buffer)
-                    # instance.{{ivar.name}} = String.new(buffer)
-                    # {% unless flag?(:spec) %}
-                    #   puts "DEBUG: Read string: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                    # {% end %}
                     instance.{{ivar.name}} =IoSerializable::Reader.read_string(io)
 
                   {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(actual_type) %}
-                    instance.{{ivar.name}} = io.read_bytes({{actual_type}}, format)
-                    {% unless flag?(:spec) %}
-                      puts "DEBUG: Read integer: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                    {% end %}
+                    instance.{{ivar.name}} = IoSerializable::Reader.read_int(io, {{actual_type}}, format)
 
                   {% elsif [Float32, Float64].includes?(actual_type) %}
-                    instance.{{ivar.name}} = io.read_bytes({{actual_type}}, format)
-                    {% unless flag?(:spec) %}
-                      puts "DEBUG: Read float: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                    {% end %}
+                    instance.{{ivar.name}} = IoSerializable::Reader.read_float(io, {{actual_type}}, format)
 
                   {% elsif [Bool].includes?(actual_type) %}
-                    value = io.read_bytes(Int8, format)
-                    instance.{{ivar.name}} = value != 0
-                    {% unless flag?(:spec) %}
-                      puts "DEBUG: Read boolean: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                    {% end %}
+                    instance.{{ivar.name}} = IoSerializable::Reader.read_bool(io, format)
 
                   {% elsif [Char].includes?(actual_type) %}
-                    # Read 4 bytes for the character
-                    char_bytes = Array(UInt8).new
-                    4.times do |i|
-                      byte = io.read_bytes(UInt8, format)
-                      # Only add non-zero bytes to avoid null termination issues
-                      char_bytes << byte if byte != 0
-                    end
-                    {% unless flag?(:spec) %}
-                      puts "DEBUG: Read char bytes: #{char_bytes.inspect}"
-                    {% end %}
-
-                    # Convert bytes to string and get first char (or default to space if empty)
-                    char_str = String.new(char_bytes.to_unsafe, char_bytes.size)
-                    instance.{{ivar.name}} = char_str.empty? ? ' ' : char_str[0]
-                    {% unless flag?(:spec) %}
-                      puts "DEBUG: Read char: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                    {% end %}
+                    instance.{{ivar.name}} = IoSerializable::Reader.read_char(io, format)
 
                   # {% elsif actual_type.name.starts_with?("Array") %}
                   #   {% element_type = actual_type.type_vars[0] %}
@@ -225,56 +176,19 @@ class IO
               {% else %}
                 # Non-nilable types
                 {% if [String].includes?(ivar.type) %}
-                  # Read string size and then the string content
-                  # size = io.read_bytes(Int32, format)
-                  # {% unless flag?(:spec) %}
-                  #   puts "DEBUG: Read string size: #{size} for {{ivar.name}}"
-                  # {% end %}
-                  # buffer = Bytes.new(size)
-                  # io.read_fully(buffer)
-                  # instance.{{ivar.name}} = String.new(buffer)
-                  # {% unless flag?(:spec) %}
-                  #   puts "DEBUG: Read string: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                  # {% end %}
                   instance.{{ivar.name}} =IoSerializable::Reader.read_string(io)
 
                 {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(ivar.type) %}
-                  instance.{{ivar.name}} = io.read_bytes({{ivar.type}}, format)
-                  {% unless flag?(:spec) %}
-                    puts "DEBUG: Read integer: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                  {% end %}
+                  instance.{{ivar.name}} = IoSerializable::Reader.read_int(io, {{ivar.type}}, format)
 
                 {% elsif [Float32, Float64].includes?(ivar.type) %}
-                  instance.{{ivar.name}} = io.read_bytes({{ivar.type}}, format)
-                  {% unless flag?(:spec) %}
-                    puts "DEBUG: Read float: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                  {% end %}
+                  instance.{{ivar.name}} = IoSerializable::Reader.read_float(io, {{ivar.type}}, format)
 
                 {% elsif [Bool].includes?(ivar.type) %}
-                  value = io.read_bytes(Int8, format)
-                  instance.{{ivar.name}} = value != 0
-                  {% unless flag?(:spec) %}
-                    puts "DEBUG: Read boolean: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                  {% end %}
+                  instance.{{ivar.name}} = IoSerializable::Reader.read_bool(io, format)
 
                 {% elsif [Char].includes?(ivar.type) %}
-                  # Read 4 bytes for the character
-                  char_bytes = Array(UInt8).new
-                  4.times do |i|
-                    byte = io.read_bytes(UInt8, format)
-                    # Only add non-zero bytes to avoid null termination issues
-                    char_bytes << byte if byte != 0
-                  end
-                  {% unless flag?(:spec) %}
-                    puts "DEBUG: Read char bytes: #{char_bytes.inspect}"
-                  {% end %}
-
-                  # Convert bytes to string and get first char (or default to space if empty)
-                  char_str = String.new(char_bytes.to_unsafe, char_bytes.size)
-                  instance.{{ivar.name}} = char_str.empty? ? ' ' : char_str[0]
-                  {% unless flag?(:spec) %}
-                    puts "DEBUG: Read char: #{instance.{{ivar.name}}} for {{ivar.name}}"
-                  {% end %}
+                  instance.{{ivar.name}} = IoSerializable::Reader.read_char(io, format)
 
                 # {% elsif ivar.type.name.starts_with?("Array") %}
                 #   {% element_type = ivar.type.type_vars[0] %}
