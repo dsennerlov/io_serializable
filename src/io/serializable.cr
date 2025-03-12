@@ -8,6 +8,31 @@ class IO
     macro included
       {% verbatim do %}
         def to_io(io : IO, format : IO::ByteFormat = IO::ByteFormat::SystemEndian) : Nil
+          {% begin %}
+            {% properties = {} of Nil => Nil %}
+            {% for ivar in @type.instance_vars %}
+              {% ann = ivar.annotation(::IO::Field) %}
+              {% unless ann && (ann[:ignore] || ann[:ignore_deserialize]) %}
+                {%
+                  properties[ivar.id] = {
+                    key:         ((ann && ann[:key]) || ivar).id.stringify,
+                    has_default: ivar.has_default_value?,
+                    default:     ivar.default_value,
+                    nilable:     ivar.type.nilable?,
+                    type:        ivar.type,
+                    # root:        ann && ann[:root],
+                    # converter:   ann && ann[:converter],
+                    # presence:    ann && ann[:presence],
+                  }
+                %}
+              {% end %}
+            {% end %}
+            {% puts properties %}
+            {% for name, value in properties %}
+              %var_{name} = uninitialized ::Union({{value[:type]}})
+            {% end %}
+          {% end %}
+
           {% for ivar in @type.instance_vars %}
             {% skip_ivar = false %}
             {% ann = ivar.annotation(IO::Field) %}
@@ -174,7 +199,7 @@ class IO
                   {% end %}
                 end
               {% else %}
-                # Non-nilable types
+                  # Non-nilable types
                 {% if [String].includes?(ivar.type) %}
                   instance.{{ivar.name}} =IoSerializable::Reader.read_string(io)
 
