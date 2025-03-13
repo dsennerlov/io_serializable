@@ -349,9 +349,9 @@ describe IO::Serializable do
       restored_user.email.should eq user.email
 
       # Fields that should be skipped (should have default values)
-      restored_user.password.should eq "default_password"
+      restored_user.password.should be_nil
       restored_user.api_key.should be_nil
-      restored_user.last_login_at.should be_nil
+      restored_user.last_login_at.should_not be_nil
     end
   end
 end
@@ -467,7 +467,10 @@ class User
 
   # Sensitive data that should be skipped
   @[IO::Field(skip: true)]
-  property password : String
+  property password : String?
+
+  @[IO::Field(skip: true)]
+  property domain : String
 
   # Sensitive data that should be skipped (nilable)
   @[IO::Field(skip: true)]
@@ -481,9 +484,10 @@ class User
     @id = 0,
     @username = "",
     @email = "",
-    @password = "default_password",
+    @password = nil,
+    @domain = "example.com",
     @api_key = nil,
-    @last_login_at = nil
+    @last_login_at = Time.utc
   )
   end
 end
