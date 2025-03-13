@@ -164,6 +164,8 @@ puts "\nOriginal employee: #{employee.name}, #{employee.address.city}, $#{employ
 # Serialize and deserialize
 io = IO::Memory.new
 employee.to_io(io)
+puts "Debug - IO contents: #{io.to_slice.inspect}"
+
 io.rewind
 restored_employee = Employee.from_io(io)
 
