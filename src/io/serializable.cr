@@ -56,14 +56,14 @@ class IO
           {% end %}
         end
 
-        def self.from_io(io : IO, format : IO::ByteFormat = IO::ByteFormat::SystemEndian) : self
+        def initialize(io : IO, format : IO::ByteFormat = IO::ByteFormat::SystemEndian)
+          initialize
+
+
           {% begin %}
             {% unless flag?(:spec) %}
-              puts "DEBUG: Starting from_io for #{self}"
+              puts "DEBUG: Starting from_io"
             {% end %}
-
-            instance = allocate
-            instance.initialize
 
             {% properties = {} of Nil => Nil %}
             {% for ivar in @type.instance_vars %}
@@ -85,50 +85,52 @@ class IO
             {% for _, value in properties %}
               {% name = value[:key] %}
 
-              # IGNORE: BEGIN
               {% if value[:nilable] %}
-#                is_{{name}}_nil = io.read_bytes(Int8, format)
                 is_{{name}}_nil = IoSerializable::Reader.read_nil_flag(io, format)
 
                 if 1 == is_{{name}}_nil
-                  pointerof(instance.@{{name}}).value = nil
+                  pointerof(@{{name}}).value = nil
                 else
               {% end %}
-              # IGNORE: END
 
               {% actual_type = value[:actual_type] %}
 
               {% if [String].includes?(actual_type) %}
-                instance.{{name}} = IoSerializable::Reader.read_string(io, format)
+                @{{name}} = IoSerializable::Reader.read_string(io, format)
               {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(actual_type) %}
-                instance.{{name}} = IoSerializable::Reader.read_int(io, {{actual_type}}, format)
+                @{{name}} = IoSerializable::Reader.read_int(io, {{actual_type}}, format)
               {% elsif [Float32, Float64].includes?(actual_type) %}
-                instance.{{name}} = IoSerializable::Reader.read_float(io, {{actual_type}}, format)
+                @{{name}} = IoSerializable::Reader.read_float(io, {{actual_type}}, format)
               {% elsif [Bool].includes?(actual_type) %}
-                instance.{{name}} = IoSerializable::Reader.read_bool(io, format)
+                @{{name}} = IoSerializable::Reader.read_bool(io, format)
               {% elsif [Char].includes?(actual_type) %}
-                instance.{{name}} = IoSerializable::Reader.read_char(io, format)
+                @{{name}} = IoSerializable::Reader.read_char(io, format)
               {% else %}
                 if {{actual_type}}.responds_to?(:from_io)
-                  instance.{{name}} = {{actual_type}}.from_io(io, format)
+                  @{{name}} = {{actual_type}}.from_io(io, format)
                 else
+                  @{{name}} = {{actual_type}}.new
                   puts "Property {{name}} of type {{actual_type}} is not supported for deserialization"
                 end
               {% end %}
 
-              # E: BEGIN
               {% if value[:nilable] %}
                 end
               {% end %}
-              # IGNORE: END
             {% end %}
-
+            {{debug}}
             {% unless flag?(:spec) %}
               puts "DEBUG: Finished from_io"
             {% end %}
 
-            return instance
           {% end %}
+        end
+
+        def self.from_io(io : IO, format : IO::ByteFormat = IO::ByteFormat::SystemEndian) : self
+          # instance = allocate
+          # instance.initialize(io, format)
+          # return instance
+          return new(io, format)
         end
       {% end %}
     end
