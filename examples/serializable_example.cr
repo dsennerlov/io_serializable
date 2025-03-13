@@ -1,10 +1,17 @@
 require "../src/io_serializable"
 
+enum Category
+  Senior
+  Junior
+  Middle
+end
+
 # Example class demonstrating IO::Serializable usage
 class Person
   include IO::Serializable
 
   property! name : String?
+  property category : Category = Category::Middle
   property age : Int32
   property count : Int8
   property items : Int16

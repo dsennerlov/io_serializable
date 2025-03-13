@@ -46,6 +46,8 @@ class IO
                   IoSerializable::Writer.write_bool(io, @{{name}}.not_nil!, format)
                 {% elsif [Char].includes?(actual_type) %}
                   IoSerializable::Writer.write_char(io, @{{name}}.not_nil!, format)
+                {% elsif actual_type < Enum %}
+                  IoSerializable::Writer.write_enum(io, @{{name}}.not_nil!, format)
                 {% elsif actual_type.has_method?("to_io") %}
                   @{{name}}.not_nil!.to_io(io, format)
                 {% else %}
@@ -105,6 +107,8 @@ class IO
                 @{{name}} = IoSerializable::Reader.read_bool(io, format)
               {% elsif [Char].includes?(actual_type) %}
                 @{{name}} = IoSerializable::Reader.read_char(io, format)
+              {% elsif actual_type < Enum %}
+                @{{name}} = IoSerializable::Reader.read_enum(io, {{actual_type}}, format)
               {% else %}
                 if {{actual_type}}.responds_to?(:from_io)
                   @{{name}} = {{actual_type}}.from_io(io, format)
