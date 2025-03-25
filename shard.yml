@@ -1,0 +1,9 @@
+name: io_serializable
+version: 0.1.0
+
+authors:
+  - David Sennerlöv <david@sennerlov.se>
+
+crystal: '>= 1.15.1'
+
+license: MIT
