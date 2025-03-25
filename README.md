@@ -131,6 +131,59 @@ io.rewind
 restored_employee = Employee.from_io(io)
 ```
 
+### File I/O
+
+You can write serialized objects directly to files and read them back:
+
+```crystal
+class Product
+  include IO::Serializable
+  
+  property id : Int32
+  property name : String
+  property price : Float64
+  property is_available : Bool
+  property category : String?
+  
+  def initialize(
+    @id = 0,
+    @name = "",
+    @price = 0.0,
+    @is_available = false,
+    @category = nil
+  )
+  end
+end
+
+# Create a product
+product = Product.new(
+  id: 123,
+  name: "Crystal Programming Guide",
+  price: 29.99,
+  is_available: true,
+  category: "Programming"
+)
+
+# Write to file
+File.open("product.bin", "wb") do |file|
+  product.to_io(file)
+end
+
+# Read from file
+restored_product = File.open("product.bin", "rb") do |file|
+  Product.from_io(file)
+end
+
+# Verify the data
+puts restored_product.name # => "Crystal Programming Guide"
+puts restored_product.price # => 29.99
+
+# Clean up
+File.delete("product.bin")
+```
+
+Note: Always use binary mode (`"wb"` for writing, `"rb"` for reading) when working with serialized data.
+
 ### Byte Format
 
 You can specify the byte format when serializing:
