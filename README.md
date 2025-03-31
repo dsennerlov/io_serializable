@@ -86,6 +86,8 @@ The library supports serialization of the following types:
   - `String`
 - Nilable versions of all the above types
 - Nested objects that also include `IO::Serializable`
+- `Tuple` types, including nested and nilable tuples
+- `Enum` types, including nilable enums
 
 > **Note:** `Symbol` type is not supported for serialization due to limitations in Crystal's Symbol handling.
 
@@ -129,6 +131,127 @@ employee.to_io(io)
 # Deserialize
 io.rewind
 restored_employee = Employee.from_io(io)
+```
+
+### Tuples
+
+The library supports serialization of tuples, including nested and nilable tuples:
+
+```crystal
+class TupleExample
+  include IO::Serializable
+  
+  property simple_tuple : Tuple(Int32, String, Float64, Bool)
+  property nested_tuple : Tuple(Tuple(String, Int32), Float64)
+  property nilable_tuple : Tuple(Int32?, String, Float64?, Bool)
+  property nilable_nested_tuple : Tuple(Tuple(String, Int32)?, Float64?)
+  
+  def initialize(
+    @simple_tuple = {0, "", 0.0, false},
+    @nested_tuple = { {"", 0}, 0.0},
+    @nilable_tuple = {nil, "", nil, false},
+    @nilable_nested_tuple = {nil, nil}
+  )
+  end
+end
+
+# Create an example instance
+example = TupleExample.new(
+  simple_tuple: {42, "hello", 3.14, true},
+  nested_tuple: { {"nested", 99}, 123.456},
+  nilable_tuple: {10, "test", 2.71, false},
+  nilable_nested_tuple: { {"inner", 5}, 9.8}
+)
+
+# Serialize
+io = IO::Memory.new
+example.to_io(io)
+
+# Deserialize
+io.rewind
+restored = TupleExample.from_io(io)
+
+# Verify
+puts restored.simple_tuple # => {42, "hello", 3.14, true}
+puts restored.nested_tuple # => {{"nested", 99}, 123.456}
+```
+
+You can also directly serialize and deserialize tuples:
+
+```crystal
+# Create a tuple
+tuple = {42, "hello", 3.14, true}
+
+# Serialize
+io = IO::Memory.new
+tuple.to_io(io)
+
+# Deserialize
+io.rewind
+restored_tuple = Tuple(Int32, String, Float64, Bool).from_io(io)
+
+puts restored_tuple # => {42, "hello", 3.14, true}
+```
+
+Tuples can also contain serializable class instances:
+
+```crystal
+# Define serializable classes
+class Point
+  include IO::Serializable
+  
+  property x : Int32
+  property y : Int32
+  
+  def initialize(@x = 0, @y = 0)
+  end
+end
+
+# Create a tuple with serializable objects
+point1 = Point.new(x: 10, y: 20)
+point2 = Point.new(x: 30, y: 40)
+point_tuple = {point1, point2}
+
+# Serialize
+io = IO::Memory.new
+point_tuple.to_io(io)
+
+# Deserialize
+io.rewind
+restored_points = Tuple(Point, Point).from_io(io)
+
+puts restored_points[0].x # => 10
+puts restored_points[1].y # => 40
+```
+
+You can create complex nested structures with tuples containing serializable objects that themselves contain tuples:
+
+```crystal
+class DataContainer
+  include IO::Serializable
+  
+  property name : String
+  property values : Tuple(Int32, Float64)
+  
+  def initialize(@name = "", @values = {0, 0.0})
+  end
+end
+
+# Create a complex nested structure
+container = DataContainer.new(name: "Example", values: {42, 3.14})
+complex_tuple = {container, "middle", 100}
+
+# Serialize and deserialize
+io = IO::Memory.new
+complex_tuple.to_io(io)
+
+io.rewind
+restored = Tuple(DataContainer, String, Int32).from_io(io)
+
+puts restored[0].name # => "Example"
+puts restored[0].values # => {42, 3.14}
+puts restored[1] # => "middle"
+puts restored[2] # => 100
 ```
 
 ### File I/O
