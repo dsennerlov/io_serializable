@@ -23,6 +23,7 @@ define_type_class(UInt64Type, UInt64, 10000000000000_000_000_u64)
 define_type_class(Float32Type, Float32, 102030.5_f32)
 define_type_class(Float64Type, Float64, 9876543.21_f64)
 define_type_class(BoolType, Bool, true)
+define_type_class(CharType, Char, '😀')
 
 
 macro it_behaves_like_io_serializable(class_name)
@@ -50,4 +51,5 @@ describe "Types" do
   it_behaves_like_io_serializable(Float32Type)
   it_behaves_like_io_serializable(Float64Type)
   it_behaves_like_io_serializable(BoolType)
+  it_behaves_like_io_serializable(CharType)
 end
