@@ -1,3 +1,65 @@
+# io_serializable v0.2.0
+
+## Overview
+This release adds support for tuple serialization, including nested tuples, nilable tuples, and tuples containing serializable objects.
+
+## New Features
+
+### Tuple Serialization
+- Added support for all tuple variants:
+  - Simple tuples of primitive types
+  - Nested tuples (tuples containing other tuples)
+  - Tuples with nilable elements
+  - Nilable nested tuples
+  - Tuples containing enum values
+  - Tuples containing serializable class instances
+  - Complex nested structures with tuples containing serializable objects that themselves contain tuples
+
+### Improved Documentation
+- Added comprehensive examples for tuple serialization in README
+- Added example code for serializing tuples with class instances
+- Enhanced code documentation
+
+### Bug Fixes
+- Fixed handling of nil values in tuple serialization
+- Improved error handling for nilable types
+
+### Other Improvements
+- Enhanced test coverage for all tuple variants
+- Code optimizations for tuple serialization
+
+## Usage Examples
+
+```crystal
+# Basic tuple serialization
+tuple = {42, "hello", 3.14, true}
+io = IO::Memory.new
+tuple.to_io(io)
+
+io.rewind
+restored_tuple = Tuple(Int32, String, Float64, Bool).from_io(io)
+```
+
+```crystal
+# Tuples with serializable classes
+class Point
+  include IO::Serializable
+  
+  property x : Int32
+  property y : Int32
+  
+  def initialize(@x = 0, @y = 0)
+  end
+end
+
+point_tuple = {Point.new(x: 10, y: 20), Point.new(x: 30, y: 40)}
+io = IO::Memory.new
+point_tuple.to_io(io)
+
+io.rewind
+restored_points = Tuple(Point, Point).from_io(io)
+```
+
 # io_serializable v0.1.0
 
 ## Overview
