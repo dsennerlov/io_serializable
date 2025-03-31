@@ -193,6 +193,67 @@ restored_tuple = Tuple(Int32, String, Float64, Bool).from_io(io)
 puts restored_tuple # => {42, "hello", 3.14, true}
 ```
 
+Tuples can also contain serializable class instances:
+
+```crystal
+# Define serializable classes
+class Point
+  include IO::Serializable
+  
+  property x : Int32
+  property y : Int32
+  
+  def initialize(@x = 0, @y = 0)
+  end
+end
+
+# Create a tuple with serializable objects
+point1 = Point.new(x: 10, y: 20)
+point2 = Point.new(x: 30, y: 40)
+point_tuple = {point1, point2}
+
+# Serialize
+io = IO::Memory.new
+point_tuple.to_io(io)
+
+# Deserialize
+io.rewind
+restored_points = Tuple(Point, Point).from_io(io)
+
+puts restored_points[0].x # => 10
+puts restored_points[1].y # => 40
+```
+
+You can create complex nested structures with tuples containing serializable objects that themselves contain tuples:
+
+```crystal
+class DataContainer
+  include IO::Serializable
+  
+  property name : String
+  property values : Tuple(Int32, Float64)
+  
+  def initialize(@name = "", @values = {0, 0.0})
+  end
+end
+
+# Create a complex nested structure
+container = DataContainer.new(name: "Example", values: {42, 3.14})
+complex_tuple = {container, "middle", 100}
+
+# Serialize and deserialize
+io = IO::Memory.new
+complex_tuple.to_io(io)
+
+io.rewind
+restored = Tuple(DataContainer, String, Int32).from_io(io)
+
+puts restored[0].name # => "Example"
+puts restored[0].values # => {42, 3.14}
+puts restored[1] # => "middle"
+puts restored[2] # => 100
+```
+
 ### File I/O
 
 You can write serialized objects directly to files and read them back:
