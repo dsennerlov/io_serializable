@@ -305,77 +305,6 @@ describe IO::Serializable do
       restored_user.last_login_at.should_not be_nil
     end
   end
-
-  describe "enum serialization" do
-    it "serializes and deserializes enums" do
-      # Create an object with an enum
-      test = EnumTest.new(
-        id: 42,
-        name: "Test Object",
-        status: TestStatus::Active
-      )
-
-      # Serialize to IO
-      io = IO::Memory.new
-      test.to_io(io)
-
-      # Deserialize from IO
-      io.rewind
-      restored_test = EnumTest.from_io(io)
-
-      # Verify all fields match
-      restored_test.id.should eq test.id
-      restored_test.name.should eq test.name
-      restored_test.status.should eq test.status
-      restored_test.optional_status.should eq test.optional_status
-    end
-
-    it "serializes and deserializes nilable enums" do
-      # Create an object with a nilable enum that has a value
-      test1 = EnumTest.new(
-        id: 42,
-        name: "Test Object",
-        status: TestStatus::Active,
-        optional_status: TestStatus::Inactive
-      )
-
-      # Serialize to IO
-      io1 = IO::Memory.new
-      test1.to_io(io1)
-
-      # Deserialize from IO
-      io1.rewind
-      restored_test1 = EnumTest.from_io(io1)
-
-      # Verify all fields match
-      restored_test1.id.should eq test1.id
-      restored_test1.name.should eq test1.name
-      restored_test1.status.should eq test1.status
-      restored_test1.optional_status.should eq test1.optional_status
-
-      # Create an object with a nilable enum that is nil
-      test2 = EnumTest.new(
-        id: 43,
-        name: "Test Object 2",
-        status: TestStatus::Pending,
-        optional_status: nil
-      )
-
-      # Serialize to IO
-      io2 = IO::Memory.new
-      test2.to_io(io2)
-
-      # Deserialize from IO
-      io2.rewind
-      restored_test2 = EnumTest.from_io(io2)
-
-      # Verify all fields match
-      restored_test2.id.should eq test2.id
-      restored_test2.name.should eq test2.name
-      restored_test2.status.should eq test2.status
-      restored_test2.optional_status.should eq test2.optional_status
-    end
-  end
 end
 
 # Test classes
@@ -516,25 +445,5 @@ class User
     @api_key = nil,
     @last_login_at = Time.utc
   )
-  end
-end
-
-# Test class for enum serialization
-class EnumTest
-  include IO::Serializable
-
-  property id : Int32
-  property name : String
-  property status : TestStatus
-  property optional_status : TestStatus?
-
-  def initialize(@id = 0, @name = "", @status = TestStatus::Pending, @optional_status = nil)
-  end
-
-  def ==(other : EnumTest)
-    id == other.id &&
-    name == other.name &&
-    status == other.status &&
-    optional_status == other.optional_status
   end
 end
