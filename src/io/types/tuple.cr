@@ -12,9 +12,9 @@ struct Tuple
       unless self[{{i}}].nil?
         {% if actual_type.has_method?(:to_io) %}
           self[{{i}}].not_nil!.to_io(io, format)
-        {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(actual_type) %}
+        {% elsif Integer::Primitive.includes?(actual_type) %}
           IoSerializable::Writer.write_int(io, self[{{i}}], format)
-        {% elsif [Float32, Float64].includes?(actual_type) %}
+        {% elsif Float::Primitive.includes?(actual_type) %}
           IoSerializable::Writer.write_float(io, self[{{i}}], format)
         {% end %}
       end
@@ -33,9 +33,9 @@ struct Tuple
 
           {% if actual_type.class.has_method?(:from_io) %}
             {{actual_type}}.from_io(io, format),
-          {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(actual_type) %}
+          {% elsif Integer::Primitive.includes?(actual_type) %}
             IoSerializable::Reader.read_int(io, {{actual_type}}, format),
-          {% elsif [Float32, Float64].includes?(actual_type) %}
+          {% elsif Float::Primitive.includes?(actual_type) %}
             IoSerializable::Reader.read_float(io, {{actual_type}}, format),
           {% end %}
         {% end %}
