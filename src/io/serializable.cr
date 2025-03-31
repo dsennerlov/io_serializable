@@ -44,10 +44,6 @@ class IO
                   IoSerializable::Writer.write_int(io, @{{name}}.not_nil!, format)
                 {% elsif [Float32, Float64].includes?(actual_type) %}
                   IoSerializable::Writer.write_float(io, @{{name}}.not_nil!, format)
-                {% elsif [Char].includes?(actual_type) %}
-                  IoSerializable::Writer.write_char(io, @{{name}}.not_nil!, format)
-                {% elsif actual_type < Enum %}
-                  IoSerializable::Writer.write_enum(io, @{{name}}.not_nil!, format)
                 {% else %}
                   {% if flag?(:io_debug) %}
                     puts "Type {{actual_type}} of {{name}} is not supported for serialization"
@@ -94,31 +90,15 @@ class IO
 
               {% if actual_type <= IO::Serializable %}
                 @{{name}} = {{actual_type}}.from_io(io, format)
-              {% elsif actual_type.has_method?(:from_io) %}
-                puts "first from_io"
+              {% elsif actual_type.class.has_method?(:from_io) %}
                 @{{name}} = {{actual_type}}.from_io(io, format)
-              {% elsif actual_type <= Tuple %}
-                @{{name}} = {{actual_type}}.from_io(io, format)
-              {% elsif [String].includes?(actual_type) %}
-                @{{name}} = IoSerializable::Reader.read_string(io, format)
               {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(actual_type) %}
                 @{{name}} = IoSerializable::Reader.read_int(io, {{actual_type}}, format)
               {% elsif [Float32, Float64].includes?(actual_type) %}
                 @{{name}} = IoSerializable::Reader.read_float(io, {{actual_type}}, format)
-              {% elsif [Bool].includes?(actual_type) %}
-                @{{name}} = IoSerializable::Reader.read_bool(io, format)
-              {% elsif [Char].includes?(actual_type) %}
-                @{{name}} = IoSerializable::Reader.read_char(io, format)
-              {% elsif actual_type < Enum %}
-                @{{name}} = IoSerializable::Reader.read_enum(io, {{actual_type}}, format)
               {% else %}
-                {% if actual_type.has_method?(:from_io) %}
-                  puts "second from_io"
-                  @{{name}} = {{actual_type}}.from_io(io, format)
-                {% else %}
-                  {% if flag?(:io_debug) %}
-                    puts "Property {{name}} of type {{actual_type}} is not supported for deserialization"
-                  {% end %}
+                {% if flag?(:io_debug) %}
+                  puts "Property {{name}} of type {{actual_type}} is not supported for deserialization"
                 {% end %}
               {% end %}
 
