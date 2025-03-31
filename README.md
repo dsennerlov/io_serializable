@@ -80,13 +80,14 @@ The library supports serialization of the following types:
 
 - Primitive types:
   - Integers: `Int8`, `Int16`, `Int32`, `Int64`, `UInt8`, `UInt16`, `UInt32`, `UInt64`
-  - Floating point: `Float32`, `Float64`
+  - Floating point: `Float32`, `Float64` (with full support for special values like Infinity, NaN, and subnormal numbers)
   - `Bool`
   - `Char`
   - `String`
 - Nilable versions of all the above types
 - Nested objects that also include `IO::Serializable`
 - `Tuple` types, including nested and nilable tuples
+- `NamedTuple` types, including nested and nilable named tuples
 - `Enum` types, including nilable enums
 
 > **Note:** `Symbol` type is not supported for serialization due to limitations in Crystal's Symbol handling.
