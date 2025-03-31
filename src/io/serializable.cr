@@ -38,7 +38,7 @@ class IO
               unless @{{name}}.nil?
                 {% actual_type = value[:actual_type] %}
 
-                {% if actual_type.has_method?("to_io") %}
+                {% if actual_type.has_method?(:to_io) %}
                   @{{name}}.not_nil!.to_io(io, format)
                 {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(actual_type) %}
                   IoSerializable::Writer.write_int(io, @{{name}}.not_nil!, format)
