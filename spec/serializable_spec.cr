@@ -9,6 +9,17 @@ enum TestStatus
   Deleted = 4
 end
 
+# Define a class for testing tuple serialization
+class TupleTest
+  include IO::Serializable
+
+  property simple_tuple : Tuple(Int32, String, Float64, Bool) = {0, "", 0.0, false}
+  property nested_tuple : Tuple(Tuple(String, Int32), Float64) = { {"", 0}, 0.0}
+
+  def initialize
+  end
+end
+
 describe IO::Serializable do
   describe "basic types serialization" do
     it "serializes and deserializes primitive types" do
@@ -433,6 +444,59 @@ describe IO::Serializable do
       restored_test2.name.should eq test2.name
       restored_test2.status.should eq test2.status
       restored_test2.optional_status.should eq test2.optional_status
+    end
+  end
+
+  describe "tuple serialization" do
+    it "serializes and deserializes tuple properties" do
+      # Create a test class instance with tuple property
+      tuple_test = TupleTest.new
+      tuple_test.simple_tuple = {42, "hello", 3.14, true}
+      tuple_test.nested_tuple = { {"nested", 99}, 123.456}
+
+      # Serialize to IO
+      io = IO::Memory.new
+      tuple_test.to_io(io)
+
+      # Deserialize from IO
+      io.rewind
+      restored_test = TupleTest.from_io(io)
+
+      # Verify tuples match
+      restored_test.simple_tuple.should eq tuple_test.simple_tuple
+      restored_test.nested_tuple.should eq tuple_test.nested_tuple
+    end
+
+    it "handles tuple direct serialization" do
+      # Create a tuple
+      tuple = {42, "hello", 3.14, true}
+
+      # Serialize directly
+      io = IO::Memory.new
+      tuple.to_io(io)
+
+      # Deserialize directly
+      io.rewind
+      restored_tuple = Tuple(Int32, String, Float64, Bool).from_io(io)
+
+      # Verify tuple matches
+      restored_tuple.should eq tuple
+    end
+
+    it "handles nested tuples" do
+      # Create a nested tuple
+      nested_tuple = { {"nested", 99}, 123.456}
+
+      # Serialize directly
+      io = IO::Memory.new
+      nested_tuple.to_io(io)
+
+      # Deserialize directly
+      io.rewind
+      restored_nested = Tuple(Tuple(String, Int32), Float64).from_io(io)
+
+      # Verify nested tuple matches
+      restored_nested.should eq nested_tuple
     end
   end
 end
