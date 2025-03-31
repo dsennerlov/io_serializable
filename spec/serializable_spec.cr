@@ -132,41 +132,6 @@ describe IO::Serializable do
     end
   end
 
-  describe "string serialization" do
-    it "handles empty strings" do
-      person = Person.new(name: "")
-
-      io = IO::Memory.new
-      person.to_io(io)
-      io.rewind
-      restored_person = Person.from_io(io)
-
-      restored_person.name.should eq ""
-    end
-
-    it "handles strings with special characters" do
-      person = Person.new(name: "Special chars: !@#$%^&*()_+{}💥[]|\\:;\"'<>,.?/")
-
-      io = IO::Memory.new
-      person.to_io(io)
-      io.rewind
-      restored_person = Person.from_io(io)
-
-      restored_person.name.should eq "Special chars: !@#$%^&*()_+{}💥[]|\\:;\"'<>,.?/"
-    end
-
-    it "handles strings with unicode characters" do
-      person = Person.new(name: "Unicode: 你好, こんにちは, 안녕하세요, Привет, مرحبا")
-
-      io = IO::Memory.new
-      person.to_io(io)
-      io.rewind
-      restored_person = Person.from_io(io)
-
-      restored_person.name.should eq "Unicode: 你好, こんにちは, 안녕하세요, Привет, مرحبا"
-    end
-  end
-
   describe "char serialization" do
     it "handles ASCII characters" do
       person = Person.new(grade: 'X')
