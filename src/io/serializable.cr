@@ -1,4 +1,6 @@
 require "../io_serializable"
+require "./to_io"
+require "./from_io"
 
 class IO
   annotation Field
@@ -36,20 +38,16 @@ class IO
               unless @{{name}}.nil?
                 {% actual_type = value[:actual_type] %}
 
-                {% if [String].includes?(actual_type) %}
-                  IoSerializable::Writer.write_string(io, @{{name}}.not_nil!, format)
+                {% if actual_type.has_method?("to_io") %}
+                  @{{name}}.not_nil!.to_io(io, format)
                 {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(actual_type) %}
                   IoSerializable::Writer.write_int(io, @{{name}}.not_nil!, format)
                 {% elsif [Float32, Float64].includes?(actual_type) %}
                   IoSerializable::Writer.write_float(io, @{{name}}.not_nil!, format)
-                {% elsif [Bool].includes?(actual_type) %}
-                  IoSerializable::Writer.write_bool(io, @{{name}}.not_nil!, format)
                 {% elsif [Char].includes?(actual_type) %}
                   IoSerializable::Writer.write_char(io, @{{name}}.not_nil!, format)
                 {% elsif actual_type < Enum %}
                   IoSerializable::Writer.write_enum(io, @{{name}}.not_nil!, format)
-                {% elsif actual_type.has_method?("to_io") %}
-                  @{{name}}.not_nil!.to_io(io, format)
                 {% else %}
                   {% if flag?(:io_debug) %}
                     puts "Type {{actual_type}} of {{name}} is not supported for serialization"
@@ -62,7 +60,6 @@ class IO
 
         def initialize(io : IO, format : IO::ByteFormat = IO::ByteFormat::SystemEndian)
           initialize
-
 
           {% begin %}
             {% properties = {} of Nil => Nil %}
@@ -93,9 +90,14 @@ class IO
                 else
               {% end %}
 
-              {% actual_type = value[:actual_type] %}
+              {% actual_type = value[:actual_type].is_a?(Generic) ? value[:actual_type].name.resolve : value[:actual_type] %}
 
               {% if actual_type <= IO::Serializable %}
+                @{{name}} = {{actual_type}}.from_io(io, format)
+              {% elsif actual_type.has_method?(:from_io) %}
+                puts "first from_io"
+                @{{name}} = {{actual_type}}.from_io(io, format)
+              {% elsif actual_type <= Tuple %}
                 @{{name}} = {{actual_type}}.from_io(io, format)
               {% elsif [String].includes?(actual_type) %}
                 @{{name}} = IoSerializable::Reader.read_string(io, format)
@@ -111,6 +113,7 @@ class IO
                 @{{name}} = IoSerializable::Reader.read_enum(io, {{actual_type}}, format)
               {% else %}
                 {% if actual_type.has_method?(:from_io) %}
+                  puts "second from_io"
                   @{{name}} = {{actual_type}}.from_io(io, format)
                 {% else %}
                   {% if flag?(:io_debug) %}
