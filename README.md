@@ -80,13 +80,14 @@ The library supports serialization of the following types:
 
 - Primitive types:
   - Integers: `Int8`, `Int16`, `Int32`, `Int64`, `UInt8`, `UInt16`, `UInt32`, `UInt64`
-  - Floating point: `Float32`, `Float64`
+  - Floating point: `Float32`, `Float64` (with full support for special values like Infinity, NaN, and subnormal numbers)
   - `Bool`
   - `Char`
   - `String`
 - Nilable versions of all the above types
 - Nested objects that also include `IO::Serializable`
 - `Tuple` types, including nested and nilable tuples
+- `NamedTuple` types, including nested and nilable named tuples
 - `Enum` types, including nilable enums
 
 > **Note:** `Symbol` type is not supported for serialization due to limitations in Crystal's Symbol handling.
@@ -252,6 +253,127 @@ puts restored[0].name # => "Example"
 puts restored[0].values # => {42, 3.14}
 puts restored[1] # => "middle"
 puts restored[2] # => 100
+```
+
+### Named Tuples
+
+The library also supports serialization of named tuples, including nested and nilable named tuples:
+
+```crystal
+class NamedTupleExample
+  include IO::Serializable
+  
+  property simple_named_tuple : NamedTuple(id: Int32, name: String, value: Float64, active: Bool)
+  property nested_named_tuple : NamedTuple(info: NamedTuple(label: String, count: Int32), score: Float64)
+  property nilable_named_tuple : NamedTuple(id: Int32?, name: String, value: Float64?, active: Bool)
+  property nilable_nested_named_tuple : NamedTuple(info: NamedTuple(label: String, count: Int32)?, score: Float64?)
+  
+  def initialize(
+    @simple_named_tuple = {id: 0, name: "", value: 0.0, active: false},
+    @nested_named_tuple = {info: {label: "", count: 0}, score: 0.0},
+    @nilable_named_tuple = {id: nil, name: "", value: nil, active: false},
+    @nilable_nested_named_tuple = {info: nil, score: nil}
+  )
+  end
+end
+
+# Create an example instance
+example = NamedTupleExample.new(
+  simple_named_tuple: {id: 42, name: "hello", value: 3.14, active: true},
+  nested_named_tuple: {info: {label: "nested", count: 99}, score: 123.456},
+  nilable_named_tuple: {id: 10, name: "test", value: 2.71, active: false},
+  nilable_nested_named_tuple: {info: {label: "inner", count: 5}, score: 9.8}
+)
+
+# Serialize
+io = IO::Memory.new
+example.to_io(io)
+
+# Deserialize
+io.rewind
+restored = NamedTupleExample.from_io(io)
+
+# Verify
+puts restored.simple_named_tuple # => {id: 42, name: "hello", value: 3.14, active: true}
+puts restored.nested_named_tuple # => {info: {label: "nested", count: 99}, score: 123.456}
+```
+
+You can also directly serialize and deserialize named tuples:
+
+```crystal
+# Create a named tuple
+named_tuple = {id: 42, name: "hello", value: 3.14, active: true}
+
+# Serialize
+io = IO::Memory.new
+named_tuple.to_io(io)
+
+# Deserialize
+io.rewind
+restored_named_tuple = NamedTuple(id: Int32, name: String, value: Float64, active: Bool).from_io(io)
+
+puts restored_named_tuple # => {id: 42, name: "hello", value: 3.14, active: true}
+```
+
+Named tuples can also contain serializable class instances:
+
+```crystal
+# Define serializable classes
+class Point
+  include IO::Serializable
+  
+  property x : Int32
+  property y : Int32
+  
+  def initialize(@x = 0, @y = 0)
+  end
+end
+
+# Create a named tuple with serializable objects
+point1 = Point.new(x: 10, y: 20)
+point2 = Point.new(x: 30, y: 40)
+point_named_tuple = {home: point1, work: point2}
+
+# Serialize
+io = IO::Memory.new
+point_named_tuple.to_io(io)
+
+# Deserialize
+io.rewind
+restored_points = NamedTuple(home: Point, work: Point).from_io(io)
+
+puts restored_points[:home].x # => 10
+puts restored_points[:work].y # => 40
+```
+
+You can create complex nested structures with named tuples containing serializable objects:
+
+```crystal
+class DataContainer
+  include IO::Serializable
+  
+  property name : String
+  property values : NamedTuple(x: Int32, y: Float64)
+  
+  def initialize(@name = "", @values = {x: 0, y: 0.0})
+  end
+end
+
+# Create a complex nested structure
+container = DataContainer.new(name: "Example", values: {x: 42, y: 3.14})
+complex_named_tuple = {data: container, label: "middle", count: 100}
+
+# Serialize and deserialize
+io = IO::Memory.new
+complex_named_tuple.to_io(io)
+
+io.rewind
+restored = NamedTuple(data: DataContainer, label: String, count: Int32).from_io(io)
+
+puts restored[:data].name # => "Example"
+puts restored[:data].values # => {x: 42, y: 3.14}
+puts restored[:label] # => "middle"
+puts restored[:count] # => 100
 ```
 
 ### File I/O

@@ -3,6 +3,7 @@ require "./types/string"
 require "./types/bool"
 require "./types/char"
 require "./types/tuple"
+require "./types/named_tuple"
 require "./types/enum"
 
 class IO
