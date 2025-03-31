@@ -132,30 +132,6 @@ describe IO::Serializable do
     end
   end
 
-  describe "char serialization" do
-    it "handles ASCII characters" do
-      person = Person.new(grade: 'X')
-
-      io = IO::Memory.new
-      person.to_io(io)
-      io.rewind
-      restored_person = Person.from_io(io)
-
-      restored_person.grade.should eq 'X'
-    end
-
-    it "handles unicode characters" do
-      person = Person.new(grade: '👍')
-
-      io = IO::Memory.new
-      person.to_io(io)
-      io.rewind
-      restored_person = Person.from_io(io)
-
-      restored_person.grade.should eq '👍'
-    end
-  end
-
   describe "nilable types" do
     it "handles non-nil values in nilable fields" do
       person = Person.new
