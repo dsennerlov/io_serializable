@@ -15,6 +15,9 @@ class TupleTest
 
   property simple_tuple : Tuple(Int32, String, Float64, Bool) = {0, "", 0.0, false}
   property nested_tuple : Tuple(Tuple(String, Int32), Float64) = { {"", 0}, 0.0}
+  property nilable_tuple : Tuple(Int32?, String, Float64?, Bool) = {nil, "", nil, false}
+  property nilable_nested_tuple : Tuple(Tuple(String, Int32)?, Float64?) = {nil, nil}
+  property enum_tuple : Tuple(TestStatus, TestStatus?) = {TestStatus::Active, nil}
 
   def initialize
   end
@@ -497,6 +500,101 @@ describe IO::Serializable do
 
       # Verify nested tuple matches
       restored_nested.should eq nested_tuple
+    end
+
+    it "handles nilable tuple elements" do
+      # Create a test class instance with nilable elements in tuple
+      tuple_test = TupleTest.new
+      tuple_test.nilable_tuple = {42, "test string", 3.14, true}
+
+      # Serialize to IO
+      io = IO::Memory.new
+      tuple_test.to_io(io)
+
+      # Deserialize from IO
+      io.rewind
+      restored_test = TupleTest.from_io(io)
+
+      # Verify tuples match
+      restored_test.nilable_tuple.should eq tuple_test.nilable_tuple
+
+      # Test with nil values
+      tuple_test.nilable_tuple = {nil, "another test", nil, false}
+
+      io = IO::Memory.new
+      tuple_test.to_io(io)
+
+      io.rewind
+      restored_test = TupleTest.from_io(io)
+
+      restored_test.nilable_tuple.should eq tuple_test.nilable_tuple
+    end
+
+    it "handles nilable nested tuples" do
+      # Create a test class instance with nilable nested tuple
+      tuple_test = TupleTest.new
+      tuple_test.nilable_nested_tuple = { {"nested value", 123}, 45.67}
+
+      # Serialize to IO
+      io = IO::Memory.new
+      tuple_test.to_io(io)
+
+      # Deserialize from IO
+      io.rewind
+      restored_test = TupleTest.from_io(io)
+
+      # Verify tuples match
+      restored_test.nilable_nested_tuple.should eq tuple_test.nilable_nested_tuple
+
+      # Test with nil values
+      tuple_test.nilable_nested_tuple = {nil, 98.76}
+
+      io = IO::Memory.new
+      tuple_test.to_io(io)
+
+      io.rewind
+      restored_test = TupleTest.from_io(io)
+
+      restored_test.nilable_nested_tuple.should eq tuple_test.nilable_nested_tuple
+
+      # Test with all nil values
+      tuple_test.nilable_nested_tuple = {nil, nil}
+
+      io = IO::Memory.new
+      tuple_test.to_io(io)
+
+      io.rewind
+      restored_test = TupleTest.from_io(io)
+
+      restored_test.nilable_nested_tuple.should eq tuple_test.nilable_nested_tuple
+    end
+
+    it "handles enum tuples" do
+      # Create a test class instance with enum tuple
+      tuple_test = TupleTest.new
+      tuple_test.enum_tuple = {TestStatus::Inactive, TestStatus::Pending}
+
+      # Serialize to IO
+      io = IO::Memory.new
+      tuple_test.to_io(io)
+
+      # Deserialize from IO
+      io.rewind
+      restored_test = TupleTest.from_io(io)
+
+      # Verify tuples match
+      restored_test.enum_tuple.should eq tuple_test.enum_tuple
+
+      # Test with nil value for nilable enum
+      tuple_test.enum_tuple = {TestStatus::Deleted, nil}
+
+      io = IO::Memory.new
+      tuple_test.to_io(io)
+
+      io.rewind
+      restored_test = TupleTest.from_io(io)
+
+      restored_test.enum_tuple.should eq tuple_test.enum_tuple
     end
   end
 end

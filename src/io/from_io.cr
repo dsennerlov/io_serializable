@@ -11,17 +11,18 @@ struct Tuple
     {% begin %}
       Tuple.new(
         {% for i in 0...T.size %}
-          {% actual_type = T[i] %}
+          {% actual_type = T[i].union_types.reject { |t| t == Nil }.first %}
+
+          {% if T[i].nilable? %}
+            1 == IoSerializable::Reader.read_nil_flag(io, format) ? nil :
+          {% end %}
+
           {% if actual_type.class.has_method?(:from_io) %}
             {{actual_type}}.from_io(io, format),
-          {% elsif [String].includes?(actual_type) %}
-            IoSerializable::Reader.read_string(io, format),
           {% elsif [Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64].includes?(actual_type) %}
             IoSerializable::Reader.read_int(io, {{actual_type}}, format),
           {% elsif [Float32, Float64].includes?(actual_type) %}
             IoSerializable::Reader.read_float(io, {{actual_type}}, format),
-          {% elsif actual_type < Enum %}
-            IoSerializable::Reader.read_enum(io, {{actual_type}}, format),
           {% end %}
         {% end %}
       )

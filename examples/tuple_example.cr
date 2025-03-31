@@ -4,7 +4,7 @@ class TupleExample
   include IO::Serializable
 
   property initialized : Bool = false
-  property tuple : Tuple(Int32, String, Float64, Bool)
+  property tuple : Tuple(Int32?, String, Float64?, Bool)
 
   def initialize(@initialized = false, @tuple = {0, "", 0.0, false})
   end
