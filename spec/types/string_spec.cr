@@ -11,6 +11,8 @@ class StringTest
   property with_default : String = "default value"
   property! property_bang : String?
   property? property_question : String?
+  property large_string : String = "a" * 1000
+  property unicode_heavy : String = "🔥🌈🚀" * 100
 
   def initialize(@standard_string = "", @nilable_string = nil, @property_bang = nil, @property_question = nil)
   end
@@ -21,7 +23,29 @@ class StringTest
     empty_string == other.empty_string &&
     with_default == other.with_default &&
     property_bang? == other.property_bang? &&
-    property_question? == other.property_question?
+    property_question? == other.property_question? &&
+    large_string == other.large_string &&
+    unicode_heavy == other.unicode_heavy
+  end
+end
+
+# Define a class with multiple string fields of the same type
+class MultiStringTest
+  include IO::Serializable
+
+  property field1 : String
+  property field2 : String
+  property field3 : String
+  property field4 : String
+
+  def initialize(@field1 = "", @field2 = "", @field3 = "", @field4 = "")
+  end
+
+  def ==(other : MultiStringTest)
+    field1 == other.field1 &&
+    field2 == other.field2 &&
+    field3 == other.field3 &&
+    field4 == other.field4
   end
 end
 
@@ -176,6 +200,98 @@ describe IO::Serializable do
 
       # Verify all fields match
       restored.should eq test
+    end
+
+    it "handles large strings" do
+      # Create a large string
+      large = "x" * 10000
+      test = StringTest.new(standard_string: large)
+
+      io = IO::Memory.new
+      test.to_io(io)
+      io.rewind
+      restored = StringTest.from_io(io)
+
+      restored.standard_string.should eq large
+    end
+
+    it "handles strings with newlines and tabs" do
+      multiline = "Line 1\nLine 2\n\tIndented line\nLine with\ttabs"
+      test = StringTest.new(standard_string: multiline)
+
+      io = IO::Memory.new
+      test.to_io(io)
+      io.rewind
+      restored = StringTest.from_io(io)
+
+      restored.standard_string.should eq multiline
+    end
+
+    it "handles strings with null bytes" do
+      null_string = "String with\0null\0bytes"
+      test = StringTest.new(standard_string: null_string)
+
+      io = IO::Memory.new
+      test.to_io(io)
+      io.rewind
+      restored = StringTest.from_io(io)
+
+      restored.standard_string.should eq null_string
+    end
+
+    it "preserves string encoding" do
+      test = StringTest.new(standard_string: "你好, こんにちは, 안녕하세요")
+
+      io = IO::Memory.new
+      test.to_io(io)
+      io.rewind
+      restored = StringTest.from_io(io)
+
+      restored.standard_string.bytesize.should eq test.standard_string.bytesize
+      restored.standard_string.should eq test.standard_string
+    end
+
+    it "handles multiple string fields" do
+      test = MultiStringTest.new(
+        field1: "First field",
+        field2: "Second field with special chars: !@#$%",
+        field3: "Third field with unicode: 你好",
+        field4: "Fourth field with \n newlines and \t tabs"
+      )
+
+      io = IO::Memory.new
+      test.to_io(io)
+      io.rewind
+      restored = MultiStringTest.from_io(io)
+
+      restored.field1.should eq test.field1
+      restored.field2.should eq test.field2
+      restored.field3.should eq test.field3
+      restored.field4.should eq test.field4
+    end
+
+    it "handles complex emoji sequences" do
+      # Complex emoji with skin tones and ZWJs
+      complex_emoji = "👨‍👩‍👧‍👦 👩🏽‍💻 👨🏿‍🦱 🏳️‍🌈 🏳️‍⚧️"
+      test = StringTest.new(standard_string: complex_emoji)
+
+      io = IO::Memory.new
+      test.to_io(io)
+      io.rewind
+      restored = StringTest.from_io(io)
+
+      restored.standard_string.should eq complex_emoji
+    end
+
+    it "handles emoji-heavy strings" do
+      test = StringTest.new
+
+      io = IO::Memory.new
+      test.to_io(io)
+      io.rewind
+      restored = StringTest.from_io(io)
+
+      restored.unicode_heavy.should eq test.unicode_heavy
     end
   end
 end
