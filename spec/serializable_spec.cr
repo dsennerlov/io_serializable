@@ -23,6 +23,21 @@ class TupleTest
   end
 end
 
+# Define a class for testing composite tuple serialization
+class CompositeTest
+  include IO::Serializable
+
+  property name : String
+  property data_tuple : Tuple(Int32, Float64)
+
+  def initialize(@name = "", @data_tuple = {0, 0.0})
+  end
+
+  def ==(other : CompositeTest)
+    name == other.name && data_tuple == other.data_tuple
+  end
+end
+
 describe IO::Serializable do
   describe "basic types serialization" do
     it "serializes and deserializes primitive types" do
@@ -595,6 +610,46 @@ describe IO::Serializable do
       restored_test = TupleTest.from_io(io)
 
       restored_test.enum_tuple.should eq tuple_test.enum_tuple
+    end
+
+    it "handles tuples with serializable class instances" do
+      # Create a tuple with serializable class instances
+      address1 = Address.new(street: "123 Main St", city: "Springfield")
+      address2 = Address.new(street: "456 Oak Ave", city: "Shelbyville")
+      tuple = {address1, address2}
+
+      # Serialize directly
+      io = IO::Memory.new
+      tuple.to_io(io)
+
+      # Deserialize directly
+      io.rewind
+      restored_tuple = Tuple(Address, Address).from_io(io)
+
+      # Verify tuple matches
+      restored_tuple[0].street.should eq "123 Main St"
+      restored_tuple[0].city.should eq "Springfield"
+      restored_tuple[1].street.should eq "456 Oak Ave"
+      restored_tuple[1].city.should eq "Shelbyville"
+
+      # Test with complex nesting: tuple containing another serializable class with nested tuple
+      composite1 = CompositeTest.new(name: "First", data_tuple: {42, 3.14})
+      composite2 = CompositeTest.new(name: "Second", data_tuple: {99, 2.71})
+
+      complex_tuple = {composite1, "middle", composite2}
+
+      # Serialize
+      io = IO::Memory.new
+      complex_tuple.to_io(io)
+
+      # Deserialize
+      io.rewind
+      restored_complex = Tuple(CompositeTest, String, CompositeTest).from_io(io)
+
+      # Verify
+      restored_complex[0].should eq composite1
+      restored_complex[1].should eq "middle"
+      restored_complex[2].should eq composite2
     end
   end
 end
