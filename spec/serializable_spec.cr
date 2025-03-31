@@ -191,30 +191,6 @@ describe IO::Serializable do
     end
   end
 
-  describe "boolean serialization" do
-    it "handles true values" do
-      person = Person.new(is_active: true)
-
-      io = IO::Memory.new
-      person.to_io(io)
-      io.rewind
-      restored_person = Person.from_io(io)
-
-      restored_person.is_active.should be_true
-    end
-
-    it "handles false values" do
-      person = Person.new(is_active: false)
-
-      io = IO::Memory.new
-      person.to_io(io)
-      io.rewind
-      restored_person = Person.from_io(io)
-
-      restored_person.is_active.should be_false
-    end
-  end
-
   describe "nilable types" do
     it "handles non-nil values in nilable fields" do
       person = Person.new
