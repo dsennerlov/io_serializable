@@ -1,6 +1,9 @@
 require "../io_serializable"
-require "./to_io"
-require "./from_io"
+require "./types/string"
+require "./types/bool"
+require "./types/char"
+require "./types/tuple"
+require "./types/enum"
 
 class IO
   annotation Field
