@@ -86,6 +86,8 @@ The library supports serialization of the following types:
   - `String`
 - Nilable versions of all the above types
 - Nested objects that also include `IO::Serializable`
+- `Tuple` types, including nested and nilable tuples
+- `Enum` types, including nilable enums
 
 > **Note:** `Symbol` type is not supported for serialization due to limitations in Crystal's Symbol handling.
 
@@ -129,6 +131,66 @@ employee.to_io(io)
 # Deserialize
 io.rewind
 restored_employee = Employee.from_io(io)
+```
+
+### Tuples
+
+The library supports serialization of tuples, including nested and nilable tuples:
+
+```crystal
+class TupleExample
+  include IO::Serializable
+  
+  property simple_tuple : Tuple(Int32, String, Float64, Bool)
+  property nested_tuple : Tuple(Tuple(String, Int32), Float64)
+  property nilable_tuple : Tuple(Int32?, String, Float64?, Bool)
+  property nilable_nested_tuple : Tuple(Tuple(String, Int32)?, Float64?)
+  
+  def initialize(
+    @simple_tuple = {0, "", 0.0, false},
+    @nested_tuple = { {"", 0}, 0.0},
+    @nilable_tuple = {nil, "", nil, false},
+    @nilable_nested_tuple = {nil, nil}
+  )
+  end
+end
+
+# Create an example instance
+example = TupleExample.new(
+  simple_tuple: {42, "hello", 3.14, true},
+  nested_tuple: { {"nested", 99}, 123.456},
+  nilable_tuple: {10, "test", 2.71, false},
+  nilable_nested_tuple: { {"inner", 5}, 9.8}
+)
+
+# Serialize
+io = IO::Memory.new
+example.to_io(io)
+
+# Deserialize
+io.rewind
+restored = TupleExample.from_io(io)
+
+# Verify
+puts restored.simple_tuple # => {42, "hello", 3.14, true}
+puts restored.nested_tuple # => {{"nested", 99}, 123.456}
+```
+
+You can also directly serialize and deserialize tuples:
+
+```crystal
+# Create a tuple
+tuple = {42, "hello", 3.14, true}
+
+# Serialize
+io = IO::Memory.new
+tuple.to_io(io)
+
+# Deserialize
+io.rewind
+restored_tuple = Tuple(Int32, String, Float64, Bool).from_io(io)
+
+puts restored_tuple # => {42, "hello", 3.14, true}
 ```
 
 ### File I/O
