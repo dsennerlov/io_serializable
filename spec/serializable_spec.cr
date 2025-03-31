@@ -1,14 +1,6 @@
 require "spec"
 require "../src/io/serializable"
 
-# Define an enum for testing
-enum TestStatus
-  Active = 1
-  Inactive = 2
-  Pending = 3
-  Deleted = 4
-end
-
 describe IO::Serializable do
   describe "basic types serialization" do
     it "serializes and deserializes primitive types" do
